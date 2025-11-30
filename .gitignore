@@ -36,6 +36,7 @@ models/*
 
 # Data
 data/raw/*
+!data/raw/.gitkeep
 
 # Logs
 *.log
