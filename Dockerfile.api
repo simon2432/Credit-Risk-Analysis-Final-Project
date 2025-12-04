@@ -1,0 +1,23 @@
+# Dockerfile for Credit Risk Analysis API
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy API code
+COPY src/api/ ./src/api/
+COPY src/__init__.py ./src/
+
+# Expose API port (using 8000 for consistency, API will be configured to use this)
+EXPOSE 8000
+
+# Run the API
+CMD ["python", "-m", "uvicorn", "src.api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+
