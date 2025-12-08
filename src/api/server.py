@@ -32,6 +32,10 @@ class PredictResponse(BaseModel):
 def read_root():
     return "this is the prediction api, start sending requests to /predict"
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "message": "API is running"}
+
 
 @app.post("/predict")
 def predict(data: PredictRequest):
@@ -49,4 +53,5 @@ def predict(data: PredictRequest):
         return PredictResponse(prediction="rejected")
 
 
-uvicorn.run(app, host="0.0.0.0", port=3003)
+# uvicorn.run is handled by Docker CMD
+# uvicorn.run(app, host="0.0.0.0", port=3003)

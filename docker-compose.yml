@@ -1,60 +1,37 @@
 version: "3.8"
 
 services:
-  backend:
+  api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.api
     container_name: credit-risk-api
     ports:
       - "8000:8000"
-    volumes:
-      # Mount models directory (when models are available)
-      # - ./models:/app/models:ro
-      # Mount data if needed for testing
-      # - ./data:/app/data:ro
     environment:
       - PYTHONUNBUFFERED=1
-    # TODO: Add healthcheck when model is loaded
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
     restart: unless-stopped
     networks:
       - credit-risk-network
 
   ui:
-    # TODO: Uncomment and configure when UI is ready
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile.ui  # Create separate Dockerfile for UI if needed
-    # Or use streamlit base image:
-    # image: streamlit/streamlit:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
     container_name: credit-risk-ui
     ports:
       - "8501:8501"
     volumes:
-      - ./ui:/app/ui
-      # - ./data:/app/data:ro  # If UI needs to load data
+      - ./src/ui:/app/src/ui # Mount for live editing
     environment:
-      - API_URL=http://backend:8000
+      - API_URL=http://api:8000
       - PYTHONUNBUFFERED=1
-    # command: streamlit run ui/app.py --server.port=8501 --server.address=0.0.0.0
     depends_on:
-      - backend
+      - api
+    restart: unless-stopped
     networks:
       - credit-risk-network
-    # Commented out until UI is implemented
-    profiles:
-      - ui
 
 networks:
   credit-risk-network:
     driver: bridge
-# TODO: Add volumes for persistent data if needed
-# volumes:
-#   models:
-#   data:
-
