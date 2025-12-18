@@ -1,6 +1,7 @@
 """
 Credit Risk Analysis - Streamlit UI Completa
-Incluye TODAS las features necesarias para el modelo (44 features, sin las 9 constantes).
+Incluye todas las features necesarias para el modelo.
+Excluye: 9 columnas constantes (se rellenan automáticamente) y 2 columnas removidas (PROFESSIONAL_CITY, PROFESSIONAL_BOROUGH).
 """
 
 import streamlit as st
@@ -122,26 +123,16 @@ with st.form("credit_risk_form"):
         )
         state_of_birth = None if state_of_birth == "" else state_of_birth
         
-        # Ciudad de nacimiento - selectbox (muchas categorías, limitamos a las más frecuentes o permitimos búsqueda)
-        city_birth_options = UI_OPTIONS.get("CITY_OF_BIRTH", [])
-        # Si hay demasiadas categorías (>500), limitamos o usamos text_input
-        if len(city_birth_options) > 500:
-            city_of_birth = st.text_input(
-                "Ciudad de nacimiento",
-                value="",
-                help="Ciudad donde nació (opcional). Ingrese el nombre exacto como aparece en el dataset.",
-                key="city_birth"
-            )
-            city_of_birth = None if city_of_birth == "" else city_of_birth
-        else:
-            city_birth_options_with_empty = [""] + city_birth_options
-            city_of_birth = st.selectbox(
-                "Ciudad de nacimiento",
-                options=city_birth_options_with_empty,
-                help="Ciudad donde nació (opcional). Seleccione de las opciones disponibles.",
-                key="city_birth"
-            )
-            city_of_birth = None if city_of_birth == "" else city_of_birth
+        # Ciudad de nacimiento - text_input (alta cardinalidad: 9,910 categorías)
+        # El usuario puede dejar vacío (None) o ingresar un valor
+        # Si el valor no existe en el dataset, Frequency Encoding usará frecuencia mínima
+        city_of_birth = st.text_input(
+            "Ciudad de nacimiento",
+            value="",
+            help="Ciudad donde nació (opcional). Deje vacío si desconoce o ingrese el nombre exacto. Si no existe en el dataset, se manejará automáticamente.",
+            key="city_birth"
+        )
+        city_of_birth = None if city_of_birth == "" else city_of_birth
         
         nacionality_options = {
             "No especificado": None,
@@ -165,42 +156,54 @@ with st.form("credit_risk_form"):
     col4, col5, col6 = st.columns(3)
     
     with col4:
-        # Ingreso mensual personal - number_input con límites del dataset
+        # Ingreso mensual personal - sin límite superior, con alerta si excede umbral
         income_limits = UI_OPTIONS.get("PERSONAL_MONTHLY_INCOME", {"min": 205.0, "max": 3678.22})
+        income_max = float(income_limits.get("max", 3678.22))
+        income_threshold = income_max * 1.25  # Alerta después de 25% más que el máximo del dataset
         personal_income = st.number_input(
             "Ingreso mensual personal (R$) *",
-            min_value=float(income_limits.get("min", 0)),
-            max_value=float(income_limits.get("max", 100000)),
+            min_value=0.0,
             value=float(income_limits.get("median", 1500)),
             step=100.0,
-            help=f"Ingreso mensual regular (rango válido: R$ {income_limits.get('min', 0):.2f} - R$ {income_limits.get('max', 100000):.2f})",
+            help=f"Ingreso mensual regular del solicitante",
             key="personal_income"
         )
+        # Mostrar alerta si excede el umbral
+        if personal_income > income_threshold:
+            st.warning(f"⚠️ El valor ingresado (R$ {personal_income:,.2f}) es significativamente mayor al máximo registrado anteriormente (R$ {income_max:.2f}).")
         
-        # Otros ingresos - number_input con límites del dataset
+        # Otros ingresos - sin límite superior, con alerta si excede umbral
         other_income_limits = UI_OPTIONS.get("OTHER_INCOMES", {"min": 0.0, "max": 800.0})
+        other_income_max = float(other_income_limits.get("max", 800.0))
+        other_income_threshold = other_income_max * 1.25  # Alerta después de 25% más que el máximo
         other_incomes_input = st.number_input(
             "Otros ingresos mensuales (R$)",
             min_value=0.0,
-            max_value=float(other_income_limits.get("max", 10000)),
             value=0.0,
             step=50.0,
-            help=f"Otros ingresos adicionales (opcional, máximo: R$ {other_income_limits.get('max', 10000):.2f})",
+            help=f"Otros ingresos adicionales (opcional)",
             key="other_incomes"
         )
+        # Mostrar alerta si excede el umbral
+        if other_incomes_input > other_income_threshold:
+            st.warning(f"⚠️ El valor ingresado (R$ {other_incomes_input:,.2f}) es significativamente mayor al máximo registrado anteriormente (R$ {other_income_max:.2f}).")
         other_incomes = None if other_incomes_input == 0.0 else other_incomes_input
         
-        # Valor de activos personales - number_input con límites del dataset
+        # Valor de activos personales - sin límite superior, con alerta si excede umbral
         assets_limits = UI_OPTIONS.get("PERSONAL_ASSETS_VALUE", {"min": 0.0, "max": 50000.0})
+        assets_max = float(assets_limits.get("max", 50000.0))
+        assets_threshold = assets_max * 1.25  # Alerta después de 25% más que el máximo
         assets_input = st.number_input(
             "Valor de activos personales (R$)",
             min_value=0.0,
-            max_value=float(assets_limits.get("max", 100000)),
             value=0.0,
             step=1000.0,
-            help=f"Valor total de propiedades, autos, etc. (opcional, máximo: R$ {assets_limits.get('max', 100000):.2f})",
+            help=f"Valor total de propiedades, autos, etc. (opcional)",
             key="assets_value"
         )
+        # Mostrar alerta si excede el umbral
+        if assets_input > assets_threshold:
+            st.warning(f"⚠️ El valor ingresado (R$ {assets_input:,.2f}) es significativamente mayor al máximo registrado anteriormente (R$ {assets_max:,.2f}).")
         assets_value = None if assets_input == 0.0 else assets_input
     
     with col5:
@@ -279,43 +282,48 @@ with st.form("credit_risk_form"):
         )
         residencial_state = None if residencial_state == "" else residencial_state
         
-        # Ciudad de residencia - text_input (muchas categorías)
+        # Ciudad de residencia - text_input (alta cardinalidad: 3,529 categorías)
+        # El usuario puede dejar vacío (None) o ingresar un valor
+        # Si el valor no existe en el dataset, Frequency Encoding usará frecuencia mínima
         residencial_city = st.text_input(
             "Ciudad de residencia",
             value="",
-            help="Ciudad donde reside (opcional). Ingrese el nombre exacto como aparece en el dataset.",
+            help="Ciudad donde reside (opcional). Deje vacío si desconoce o ingrese el nombre exacto. Si no existe en el dataset, se manejará automáticamente.",
             key="res_city"
         )
         residencial_city = None if residencial_city == "" else residencial_city
         
-        # Barrio de residencia - text_input (muchas categorías)
+        # Barrio de residencia - text_input (alta cardinalidad: 14,511 categorías)
+        # El usuario puede dejar vacío (None) o ingresar un valor
+        # Si el valor no existe en el dataset, Frequency Encoding usará frecuencia mínima
         residencial_borough = st.text_input(
             "Barrio de residencia",
             value="",
-            help="Barrio donde reside (opcional). Ingrese el nombre exacto como aparece en el dataset.",
+            help="Barrio donde reside (opcional). Deje vacío si desconoce o ingrese el nombre exacto. Si no existe en el dataset, se manejará automáticamente.",
             key="res_borough"
         )
         residencial_borough = None if residencial_borough == "" else residencial_borough
         
-        # Código de área teléfono residencial - selectbox con opciones reales
+        # Código de área teléfono residencial - selectbox (alta cardinalidad: 102 categorías)
+        # Usa Frequency Encoding, valores desconocidos se manejan automáticamente
         res_phone_area_options = UI_OPTIONS.get("RESIDENCIAL_PHONE_AREA_CODE", [])
         res_phone_area_options_with_empty = [""] + sorted(res_phone_area_options)
         residencial_phone_area_code = st.selectbox(
             "Código de área teléfono residencial",
             options=res_phone_area_options_with_empty,
-            help="Código de área (opcional). Seleccione de las opciones disponibles.",
+            help="Código de área (opcional). Seleccione de las opciones disponibles o deje vacío si desconoce.",
             key="res_phone_area"
         )
         residencial_phone_area_code = None if residencial_phone_area_code == "" else residencial_phone_area_code
         
-        # Código postal - selectbox con opciones reales (puede tener muchas, pero manejable)
+        # Código postal - selectbox o text_input según cantidad (alta cardinalidad: 794 categorías)
         res_zip_options = UI_OPTIONS.get("RESIDENCIAL_ZIP_3", [])
         if len(res_zip_options) > 1000:
             # Si hay demasiadas, usar text_input
             residencial_zip_3 = st.text_input(
                 "Código postal (primeros 3 dígitos)",
                 value="",
-                help="Código postal (opcional). Ingrese los primeros 3 dígitos.",
+                help="Código postal (opcional). Deje vacío si desconoce o ingrese los primeros 3 dígitos. Si no existe en el dataset, se manejará automáticamente.",
                 key="res_zip"
             )
             residencial_zip_3 = None if residencial_zip_3 == "" else residencial_zip_3
@@ -324,7 +332,7 @@ with st.form("credit_risk_form"):
             residencial_zip_3 = st.selectbox(
                 "Código postal (primeros 3 dígitos)",
                 options=res_zip_options_with_empty,
-                help="Código postal (opcional). Seleccione de las opciones disponibles.",
+                help="Código postal (opcional). Seleccione de las opciones disponibles o deje vacío si desconoce.",
                 key="res_zip"
             )
             residencial_zip_3 = None if residencial_zip_3 == "" else residencial_zip_3
@@ -401,23 +409,8 @@ with st.form("credit_risk_form"):
         )
         professional_state = None if professional_state == "" else professional_state
         
-        # Ciudad profesional - text_input (muchas categorías)
-        professional_city = st.text_input(
-            "Ciudad profesional",
-            value="",
-            help="Ciudad donde trabaja (opcional). Ingrese el nombre exacto como aparece en el dataset.",
-            key="prof_city"
-        )
-        professional_city = None if professional_city == "" else professional_city
-        
-        # Barrio profesional - text_input (muchas categorías)
-        professional_borough = st.text_input(
-            "Barrio profesional",
-            value="",
-            help="Barrio donde trabaja (opcional). Ingrese el nombre exacto como aparece en el dataset.",
-            key="prof_borough"
-        )
-        professional_borough = None if professional_borough == "" else professional_borough
+        # NOTA: PROFESSIONAL_CITY y PROFESSIONAL_BOROUGH fueron removidas del preprocessing
+        # porque tienen alta cardinalidad y muchos missing values
     
     with col11:
         flag_professional_phone = st.selectbox(
@@ -427,24 +420,25 @@ with st.form("credit_risk_form"):
             key="professional_phone"
         )
         
-        # Código de área del teléfono profesional - selectbox con opciones reales
+        # Código de área del teléfono profesional - selectbox (alta cardinalidad: 87 categorías)
+        # Usa agrupación + OneHot, valores desconocidos se manejan automáticamente
         prof_phone_area_options = UI_OPTIONS.get("PROFESSIONAL_PHONE_AREA_CODE", [])
         prof_phone_area_options_with_empty = [""] + sorted(prof_phone_area_options)
         professional_phone_area_code = st.selectbox(
             "Código de área teléfono profesional",
             options=prof_phone_area_options_with_empty,
-            help="Código de área (opcional). Seleccione de las opciones disponibles.",
+            help="Código de área (opcional). Seleccione de las opciones disponibles o deje vacío si desconoce.",
             key="prof_phone_area"
         )
         professional_phone_area_code = None if professional_phone_area_code == "" else professional_phone_area_code
         
-        # Código postal profesional - selectbox o text_input según cantidad
+        # Código postal profesional - selectbox o text_input según cantidad (alta cardinalidad: 794 categorías)
         prof_zip_options = UI_OPTIONS.get("PROFESSIONAL_ZIP_3", [])
         if len(prof_zip_options) > 1000:
             professional_zip_3 = st.text_input(
                 "Código postal profesional (primeros 3 dígitos)",
                 value="",
-                help="Código postal (opcional). Ingrese los primeros 3 dígitos.",
+                help="Código postal (opcional). Deje vacío si desconoce o ingrese los primeros 3 dígitos. Si no existe en el dataset, se manejará automáticamente.",
                 key="prof_zip"
             )
             professional_zip_3 = None if professional_zip_3 == "" else professional_zip_3
@@ -453,7 +447,7 @@ with st.form("credit_risk_form"):
             professional_zip_3 = st.selectbox(
                 "Código postal profesional (primeros 3 dígitos)",
                 options=prof_zip_options_with_empty,
-                help="Código postal (opcional). Seleccione de las opciones disponibles.",
+                help="Código postal (opcional). Seleccione de las opciones disponibles o deje vacío si desconoce.",
                 key="prof_zip"
             )
             professional_zip_3 = None if professional_zip_3 == "" else professional_zip_3
@@ -608,10 +602,7 @@ with st.form("credit_risk_form"):
         # Opcionales - Empleo
         if professional_state:
             payload["PROFESSIONAL_STATE"] = professional_state
-        if professional_city:
-            payload["PROFESSIONAL_CITY"] = professional_city
-        if professional_borough:
-            payload["PROFESSIONAL_BOROUGH"] = professional_borough
+        # NOTA: PROFESSIONAL_CITY y PROFESSIONAL_BOROUGH fueron removidas del preprocessing
         if professional_phone_area_code:
             payload["PROFESSIONAL_PHONE_AREA_CODE"] = professional_phone_area_code
         if professional_zip_3:
@@ -626,7 +617,7 @@ with st.form("credit_risk_form"):
         if mate_profession_code is not None:
             payload["MATE_PROFESSION_CODE"] = int(mate_profession_code)
         if education_level_1 is not None:
-            payload["EDUCATION_LEVEL_1"] = int(education_level_1)
+            payload["MATE_EDUCATION_LEVEL"] = int(education_level_1)
         if product is not None:
             payload["PRODUCT"] = int(product)
         

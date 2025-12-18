@@ -22,4 +22,4 @@ RUN mkdir -p /app/models /app/data/processed
 # La API accederá a estos archivos a través del volumen compartido
 
 # Servicio simple que mantiene el contenedor corriendo
-CMD ["python", "-c", "import time; print('Model service running - models available at /app/models'); print('Preprocessor available at /app/data/processed'); [time.sleep(3600) for _ in iter(int, 1)]"]
+CMD ["python", "-c", "import time; print('Model service running - models available at /app/models'); print('Preprocessor available at /app/models/preprocessor'); [time.sleep(3600) for _ in iter(int, 1)]"]

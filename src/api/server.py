@@ -36,15 +36,31 @@ def load_model_and_preprocessor():
         if threshold_path.exists():
             with open(threshold_path, "r") as f:
                 optimal_threshold = float(f.read().strip())
-            print(f"✓ Optimal threshold loaded: {optimal_threshold:.4f}")
+            print(f"[OK] Optimal threshold loaded: {optimal_threshold:.4f}")
         else:
-            print(f"⚠️  Optimal threshold file not found, using default: {optimal_threshold}")
+            print(f"[WARNING] Optimal threshold file not found, using default: {optimal_threshold}")
         
-        print(f"✓ Model loaded from: {MODEL_FILE}")
-        print(f"✓ Preprocessor loaded from: {PREPROCESSOR_FILE}")
+        print(f"[OK] Model loaded from: {MODEL_FILE}")
+        print(f"[OK] Preprocessor loaded from: {PREPROCESSOR_FILE}")
+        print(f"[DEBUG] PREPROCESSOR_FILE path: {PREPROCESSOR_FILE}")
+        print(f"[DEBUG] File exists: {os.path.exists(PREPROCESSOR_FILE)}")
+        
+        # Verificar que el preprocessor tenga los métodos de protección
+        if hasattr(preprocessor, '__setstate__'):
+            print("[OK] Preprocessor has __setstate__ method")
+        if hasattr(preprocessor, '__getattribute__'):
+            print("[OK] Preprocessor has __getattribute__ method")
+        
+        # Verificar atributos obsoletos
+        if hasattr(preprocessor, 'outlier_limits'):
+            print(f"[INFO] outlier_limits exists, type: {type(getattr(preprocessor, 'outlier_limits', None))}")
+        else:
+            print("[WARNING] outlier_limits does not exist (may cause issues)")
         return True
     except Exception as e:
-        print(f"⚠️  Error loading model/preprocessor: {str(e)}")
+        print(f"[ERROR] Error loading model/preprocessor: {str(e)}")
+        import traceback
+        traceback.print_exc()
         print(f"   MODEL_FILE: {MODEL_FILE}")
         print(f"   PREPROCESSOR_FILE: {PREPROCESSOR_FILE}")
         return False
@@ -116,15 +132,14 @@ class PredictRequest(BaseModel):
     
     # Features opcionales - Empleo
     PROFESSIONAL_STATE: Optional[str] = Field(None, description="Estado profesional")
-    PROFESSIONAL_CITY: Optional[str] = Field(None, description="Ciudad profesional")
-    PROFESSIONAL_BOROUGH: Optional[str] = Field(None, description="Barrio profesional")
+    # NOTA: PROFESSIONAL_CITY y PROFESSIONAL_BOROUGH fueron removidas del preprocessing (alta cardinalidad + muchos missing)
     PROFESSIONAL_PHONE_AREA_CODE: Optional[str] = Field(None, description="Código de área teléfono profesional")
     PROFESSIONAL_ZIP_3: Optional[str] = Field(None, description="Código postal profesional (primeros 3 dígitos)")
     MONTHS_IN_THE_JOB: Optional[float] = Field(None, ge=0, description="Meses en trabajo actual")
     PROFESSION_CODE: Optional[int] = Field(None, description="Código de profesión")
     OCCUPATION_TYPE: Optional[int] = Field(None, ge=1, le=5, description="Tipo de ocupación: 1-5")
     MATE_PROFESSION_CODE: Optional[int] = Field(None, description="Código de profesión del cónyuge")
-    EDUCATION_LEVEL_1: Optional[int] = Field(None, description="Nivel educativo del cónyuge")
+    MATE_EDUCATION_LEVEL: Optional[int] = Field(None, description="Nivel educativo del cónyuge")
     
     # Features opcionales - Otros
     PRODUCT: Optional[int] = Field(None, description="Tipo de producto")

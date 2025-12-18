@@ -34,10 +34,10 @@ Según el EDA, se encontraron **9 columnas constantes** que se detectan y remuev
 
 Basado en el análisis, las variables con más missing values son:
 
-1. **`PROFESSIONAL_CITY`** - Muchos missing (NaN) ⭐ (tiene indicador de missing)
-2. **`PROFESSIONAL_BOROUGH`** - Muchos missing (NaN) ⭐ (tiene indicador de missing)
+1. **`PROFESSIONAL_CITY`** - Muchos missing (NaN) ❌ **REMOVIDA** (alta cardinalidad + muchos missing)
+2. **`PROFESSIONAL_BOROUGH`** - Muchos missing (NaN) ❌ **REMOVIDA** (alta cardinalidad + muchos missing)
 3. **`MATE_PROFESSION_CODE`** - Muchos missing (NaN) ⭐ (tiene indicador de missing)
-4. **`EDUCATION_LEVEL_1`** - Muchos missing (NaN) ⭐ (tiene indicador de missing)
+4. **`MATE_EDUCATION_LEVEL`** - Muchos missing (NaN) ⭐ (tiene indicador de missing)
 5. **`PROFESSION_CODE`** - Algunos missing ⭐ (tiene indicador de missing)
 6. **`MONTHS_IN_RESIDENCE`** - Algunos missing (NULL) ⭐ (tiene indicador de missing)
 7. **`RESIDENCE_TYPE`** - Algunos missing (NULL) ⭐ (tiene indicador de missing)
@@ -47,7 +47,7 @@ Basado en el análisis, las variables con más missing values son:
 
 - `PROFESSIONAL_PHONE_AREA_CODE` - Puede tener algunos missing (se imputa pero no se crea indicador)
 
-**Nota:** Para las 8 variables marcadas con ⭐, el preprocessing crea indicadores binarios (`MISSING_*`) antes de imputar. Los missing en variables profesionales pueden ser informativos (indica que no tiene trabajo formal).
+**Nota:** Para las 6 variables marcadas con ⭐ (ya no 8, porque PROFESSIONAL*CITY y PROFESSIONAL_BOROUGH fueron removidas), el preprocessing crea indicadores binarios (`MISSING*\*`) antes de imputar. Los missing en variables profesionales pueden ser informativos (indica que no tiene trabajo formal).
 
 ---
 
@@ -196,15 +196,17 @@ Esta feature muestra diferencia entre grupos del target, lo que sugiere que rati
 ### 3. **Missing Values:**
 
 - **Variables profesionales:** Missing puede ser informativo (no tiene trabajo formal)
-- **8 indicadores de missing creados** para variables importantes:
-  - `MISSING_PROFESSIONAL_CITY`
-  - `MISSING_PROFESSIONAL_BOROUGH`
+- **6 indicadores de missing creados** para variables importantes:
+
   - `MISSING_PROFESSION_CODE`
   - `MISSING_MONTHS_IN_RESIDENCE`
   - `MISSING_MATE_PROFESSION_CODE`
-  - `MISSING_EDUCATION_LEVEL_1`
+  - `MISSING_MATE_EDUCATION_LEVEL`
   - `MISSING_RESIDENCE_TYPE`
   - `MISSING_OCCUPATION_TYPE`
+
+  **Nota:** `MISSING_PROFESSIONAL_CITY` y `MISSING_PROFESSIONAL_BOROUGH` NO se crean porque estas columnas fueron removidas en el Paso 1 (alta cardinalidad + muchos missing).
+
 - Imputar con mediana (numéricas) / moda (categóricas) según tipo
 
 ### 4. **Alta Cardinalidad:**
@@ -228,7 +230,7 @@ Esta feature muestra diferencia entre grupos del target, lo que sugiere que rati
 1. ✅ **`CLERK_TYPE`** confirmado como constante (todos "C") - removida automáticamente
 2. ⚠️ **Nota importante:** `FLAG_ACSP_RECORD` está en la lista de columnas constantes en el código actual (todos valores "N"). Si el dataset completo realmente tiene esta variable como constante, entonces es correcto removerla. Sin embargo, según el EDA original, esta variable era muy importante para riesgo crediticio, por lo que debería verificarse que efectivamente sea constante en todos los datos.
 3. Variables de **estabilidad** (meses en trabajo/residencia) son importantes y se usan en feature engineering (YEARS_IN_RESIDENCE, YEARS_IN_JOB, STABILITY_SCORE)
-4. **Missing en variables profesionales** se usa como feature informativa (indica desempleo/informalidad) - se crean 8 indicadores de missing para estas variables antes de imputar
+4. **Missing en variables importantes** se usa como feature informativa - se crean 6 indicadores de missing para estas variables antes de imputar
 
 ---
 

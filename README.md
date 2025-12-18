@@ -27,14 +27,26 @@ Credit-Risk-Analysis-Final-Project/
 │   │   └── ...
 │   └── processed/        # Clean and preprocessed dataset (to be created)
 ├── notebooks/
-│   ├── EDA/              # Exploratory data analysis notebooks
-│   │   └── simon_EDA.ipynb
-│   └── preprocessing/    # Preprocessing notebooks (to be created)
-├── src/                  # Python source code (to be developed)
-│   └── __init__.py
-├── api/                  # FastAPI (to be developed)
-├── ui/                   # Streamlit UI (to be developed)
-├── models/               # Saved trained models (to be created)
+│   └── EDA/              # Exploratory data analysis notebooks
+│       ├── maria_EDA.ipynb
+│       └── simon_EDA_ordered.ipynb
+├── src/                  # Python source code
+│   ├── __init__.py
+│   ├── preprocessing.py  # Preprocessing pipeline
+│   ├── train_model.py    # Model training script
+│   ├── data_utils.py     # Data loading utilities
+│   ├── models_config.py  # Model configurations
+│   ├── config.py         # Configuration paths
+│   ├── api/              # FastAPI service
+│   │   ├── server.py
+│   │   └── feature_mapper.py
+│   └── ui/               # Streamlit UI
+│       ├── simple_app.py
+│       └── ui_options.json
+├── models/               # Saved trained models (gitignored, except .gitkeep)
+├── data/
+│   ├── raw/              # Original dataset (gitignored, except .gitkeep)
+│   └── processed/        # Processed data (gitignored, except .gitkeep)
 ├── Dockerfile            # Docker for API + model
 ├── docker-compose.yml    # Service orchestration
 ├── requirements.txt      # Project dependencies
@@ -69,46 +81,38 @@ python -c "import pandas, sklearn, fastapi; print('Dependencies installed correc
 
 ## 📝 Current Project Status
 
-The project is under active development. The base structure is established and the team is working on:
+The project is **fully functional** and ready for use:
 
-- **Folder structure**: Project organization defined
-- **Dataset**: PAKDD2010 data loaded in `data/raw/`
-- **EDA**: Exploratory analysis in progress (`notebooks/EDA/`)
-- **Preprocessing**: Preprocessing pipeline (to be developed)
-- **Models**: Training and comparison (to be developed)
-- **API**: FastAPI for deployment (to be developed)
-- **UI**: Streamlit interface (to be developed)
+- ✅ **Folder structure**: Complete project organization
+- ✅ **Dataset**: PAKDD2010 data processing implemented
+- ✅ **EDA**: Exploratory analysis completed (`notebooks/EDA/`)
+- ✅ **Preprocessing**: Complete preprocessing pipeline implemented (`src/preprocessing.py`)
+- ✅ **Models**: Training and comparison implemented (`src/train_model.py`)
+  - Logistic Regression, Random Forest, Gradient Boosting
+  - Automatic model selection based on ROC-AUC
+  - Optimal threshold calculation
+- ✅ **API**: FastAPI service implemented (`src/api/server.py`)
+  - `/predict` endpoint for credit risk evaluation
+  - Automatic model and preprocessor loading
+- ✅ **UI**: Streamlit interface implemented (`src/ui/simple_app.py`)
+  - User-friendly form for credit evaluation
+  - Real-time predictions via API
 
-## 📝 Next Steps
+## 📝 Quick Start
 
-1. **Complete EDA**:
+For detailed instructions, see:
 
-   - Analyze variable distributions
-   - Identify null values and outliers
-   - Study correlations between features
-   - Document findings in `notebooks/EDA/`
+- **`SISTEMA_COMPLETO.md`**: Complete system documentation with quick start guide
+- **`DOCKER_QUICK.md`**: Docker setup and usage guide
+- **`MODELOS_PERSONALIZADOS.md`**: Guide to add custom models
+- **`PREPROCESSING_PLAN.md`**: Detailed preprocessing documentation
 
-2. **Develop Preprocessing Pipeline**:
+**Quick setup:**
 
-   - Implement cleaning and transformation functions
-   - Define imputation and encoding strategies
-   - Save processed data in `data/processed/`
-
-3. **Train Models**:
-
-   - Implement baseline model
-   - Compare multiple models (Logistic Regression, Decision Tree, Random Forest, etc.)
-   - Select final model based on metrics relevant for credit risk
-
-4. **Develop API**:
-
-   - Implement FastAPI in `api/`
-   - Connect with trained model
-   - Expose `/predict` endpoint
-
-5. **Develop UI**:
-   - Implement Streamlit interface in `ui/`
-   - Connect with API for real-time predictions
+1. Place dataset files in `data/raw/`
+2. Run `docker-compose up --build`
+3. Train models: `python -m src.train_model`
+4. Use UI: http://localhost:8501
 
 ## 👥 Team
 

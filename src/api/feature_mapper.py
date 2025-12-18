@@ -60,8 +60,7 @@ DEFAULT_OPTIONAL_VALUES = {
     
     # Variables de Empleo
     "PROFESSIONAL_STATE": None,
-    "PROFESSIONAL_CITY": None,
-    "PROFESSIONAL_BOROUGH": None,
+    # NOTA: PROFESSIONAL_CITY y PROFESSIONAL_BOROUGH fueron removidas del preprocessing (alta cardinalidad + muchos missing)
     "PROFESSIONAL_PHONE_AREA_CODE": None,
     "MONTHS_IN_THE_JOB": None,
     "PROFESSION_CODE": None,
@@ -70,10 +69,10 @@ DEFAULT_OPTIONAL_VALUES = {
     "PROFESSIONAL_ZIP_3": None,
     
     # Otras
-    "EDUCATION_LEVEL_1": None,  # Nivel educativo del cónyuge
+    "MATE_EDUCATION_LEVEL": None,  # Nivel educativo del cónyuge
     "PRODUCT": 1,  # Tipo de producto más común
 }
-
+    
 # Features que DEBEMOS pedir al usuario (importantes para el modelo)
 REQUIRED_ESSENTIAL_FEATURES = [
     "PAYMENT_DAY",
@@ -118,16 +117,17 @@ def _get_column_order() -> List[str]:
 def create_full_feature_dict(simplified_input: Dict[str, Any]) -> Dict[str, Any]:
     """
     Convierte un diccionario con features simplificadas a uno completo
-    con TODAS las 53 features originales (incluyendo constantes) en el orden correcto.
+    con TODAS las features originales del dataset en el orden correcto.
     
-    IMPORTANTE: Las 9 columnas constantes se rellenan automáticamente porque
-    se eliminan en el preprocessing. No tiene sentido pedirlas al usuario.
+    IMPORTANTE: 
+    - Las 9 columnas constantes se rellenan automáticamente porque se eliminan en el preprocessing.
+    - PROFESSIONAL_CITY y PROFESSIONAL_BOROUGH se incluyen con None y se remueven en preprocessing paso 1.
     
     Args:
         simplified_input: Diccionario con solo las features que el usuario proporcionó
         
     Returns:
-        Diccionario completo con todas las 53 features en el orden correcto
+        Diccionario completo con todas las features del dataset original en el orden correcto
     """
     # Obtener el orden correcto de columnas (cached)
     required_cols = _get_column_order()
@@ -145,12 +145,15 @@ def create_full_feature_dict(simplified_input: Dict[str, Any]) -> Dict[str, Any]
     full_dict.update(simplified_input)
     
     # 4. Crear diccionario en el orden correcto
+    # NOTA: PROFESSIONAL_CITY y PROFESSIONAL_BOROUGH se remueven en preprocessing paso 1
+    # pero están en el dataset original, así que las incluimos con None para que el preprocessing las remueva
     ordered_dict = {}
     for col in required_cols:
         if col in full_dict:
             ordered_dict[col] = full_dict[col]
         else:
             # Si falta alguna columna, usar None (se manejará como missing)
+            # Para PROFESSIONAL_CITY y PROFESSIONAL_BOROUGH, se usarán None y luego se removerán en preprocessing
             ordered_dict[col] = None
     
     return ordered_dict
@@ -168,7 +171,7 @@ def get_required_features_list() -> list:
         "APPLICATION_SUBMISSION_TYPE",
         "CITY_OF_BIRTH",
         "COMPANY",
-        "EDUCATION_LEVEL_1",
+        "MATE_EDUCATION_LEVEL",
         "FLAG_AMERICAN_EXPRESS",
         "FLAG_DINERS",
         "FLAG_EMAIL",
@@ -189,8 +192,7 @@ def get_required_features_list() -> list:
         "PERSONAL_MONTHLY_INCOME",
         "POSTAL_ADDRESS_TYPE",
         "PRODUCT",
-        "PROFESSIONAL_BOROUGH",
-        "PROFESSIONAL_CITY",
+        # NOTA: PROFESSIONAL_BOROUGH y PROFESSIONAL_CITY fueron removidas del preprocessing (alta cardinalidad + muchos missing)
         "PROFESSIONAL_PHONE_AREA_CODE",
         "PROFESSIONAL_STATE",
         "PROFESSIONAL_ZIP_3",
@@ -207,4 +209,4 @@ def get_required_features_list() -> list:
         "RESIDENCIAL_ZIP_3",
         "SEX",
         "STATE_OF_BIRTH",
-    ]
+]

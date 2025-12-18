@@ -27,11 +27,17 @@ MODEL_VERSION = os.getenv("MODEL_VERSION", "production")
 # Paths para modelo y preprocessor
 # Soporta estructura: models/v1/, models/v2/, models/production/, etc.
 MODEL_DIR = Path(MODELS_PATH) / MODEL_VERSION
-PROCESSED_DIR = Path(BASE_PATH / "data" / "processed") / MODEL_VERSION
+
+# NUEVA UBICACIÓN: Preprocessor se guarda en models/preprocessor/
+PREPROCESSOR_DIR = Path(MODELS_PATH) / "preprocessor"
 
 # Crear directorios si no existen
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
-PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+PREPROCESSOR_DIR.mkdir(parents=True, exist_ok=True)
+
+# NOTA: PROCESSED_DIR ya no se usa (el preprocessor ahora está en PREPROCESSOR_DIR)
+# Se mantiene por compatibilidad pero no se crea automáticamente
+PROCESSED_DIR = Path(BASE_PATH / "data" / "processed") / MODEL_VERSION
 
 # Si no existe la versión específica, usar modelo directo (compatibilidad hacia atrás)
 if not MODEL_DIR.exists() or not (MODEL_DIR / "model.joblib").exists():
@@ -40,11 +46,8 @@ if not MODEL_DIR.exists() or not (MODEL_DIR / "model.joblib").exists():
 else:
     MODEL_FILE = str(MODEL_DIR / "model.joblib")
 
-if not PROCESSED_DIR.exists() or not (PROCESSED_DIR / "preprocessor.joblib").exists():
-    # Fallback a estructura simple: data/processed/preprocessor.joblib
-    PREPROCESSOR_FILE = str(Path(BASE_PATH / "data" / "processed") / "preprocessor.joblib")
-else:
-    PREPROCESSOR_FILE = str(PROCESSED_DIR / "preprocessor.joblib")
+# NUEVA UBICACIÓN: Preprocessor siempre en models/preprocessor/preprocessor.joblib
+PREPROCESSOR_FILE = str(PREPROCESSOR_DIR / "preprocessor.joblib")
 
 # Paths adicionales para gestión de modelos
 MODELS_BASE_PATH = MODELS_PATH

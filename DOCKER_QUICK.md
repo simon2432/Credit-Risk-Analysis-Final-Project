@@ -26,10 +26,8 @@ El proyecto usa **Docker Compose** con 3 servicios (arquitectura de microservici
 **Volúmenes compartidos:**
 
 - `./models` → `/app/models:ro` (solo lectura)
-  - Modelo: `model.joblib`
-  - Compartido entre: `model` y `api`
-- `./data/processed` → `/app/data/processed:ro` (solo lectura)
-  - Preprocesador: `preprocessor.joblib`
+  - Modelo: `models/production/model.joblib`
+  - Preprocesador: `models/preprocessor/preprocessor.joblib`
   - Compartido entre: `model` y `api`
 - `./data/raw` → `/app/data/raw:ro` (solo lectura, solo en API)
   - Datos de entrenamiento si se necesitan en runtime

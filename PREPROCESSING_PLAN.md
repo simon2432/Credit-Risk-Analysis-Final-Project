@@ -319,7 +319,7 @@ El pipeline procesa los datos en **6 pasos secuenciales**, transformando 53 colu
   - **Valores:** Valores numéricos
   - **Tipo:** Numérica discreta
 
-- **`EDUCATION_LEVEL_1`** (Var_Id: 44)
+- **`MATE_EDUCATION_LEVEL`** (Var_Id: 44)
 
   - **Descripción:** Nivel educativo del cónyuge en orden gradual. Encoding no informado
   - **Valores:** 1, 2, 3, 4, 5, NULL
@@ -356,7 +356,7 @@ El pipeline procesa los datos en **6 pasos secuenciales**, transformando 53 colu
 
 ## 🔧 Feature Engineering Implementado
 
-El pipeline crea **19 nuevas features** agrupadas en 8 categorías:
+El pipeline crea **17 nuevas features** agrupadas en 7 categorías:
 
 ### 1. **Features Financieras Combinadas** (5 features)
 
@@ -398,19 +398,13 @@ STABILITY_SCORE = (MONTHS_IN_RESIDENCE + MONTHS_IN_THE_JOB) / 24
 
 ```python
 # Total de métodos de contacto disponibles
+# NOTA: FLAG_MOBILE_PHONE se elimina (constante), solo usamos FLAG_RESIDENCIAL_PHONE y FLAG_EMAIL
 CONTACT_METHODS_COUNT = (
-    FLAG_RESIDENCIAL_PHONE.fillna(0) +
-    FLAG_MOBILE_PHONE.fillna(0) +
+    (FLAG_RESIDENCIAL_PHONE == "Y").astype(int).fillna(0) +
     FLAG_EMAIL.fillna(0)
 )
 
-# Total de documentos proporcionados
-DOCUMENTS_COUNT = (
-    FLAG_HOME_ADDRESS_DOCUMENT.fillna(0) +
-    FLAG_RG.fillna(0) +
-    FLAG_CPF.fillna(0) +
-    FLAG_INCOME_PROOF.fillna(0)
-)
+# NOTA: DOCUMENTS_COUNT fue removido (usaba columnas constantes: FLAG_HOME_ADDRESS_DOCUMENT, FLAG_RG, FLAG_CPF, FLAG_INCOME_PROOF)
 ```
 
 ### 4. **Features de Tarjetas** (2 features)
@@ -422,22 +416,19 @@ TOTAL_CARDS = (
     FLAG_MASTERCARD.fillna(0) +
     FLAG_DINERS.fillna(0) +
     FLAG_AMERICAN_EXPRESS.fillna(0) +
-    FLAG_OTHER_CARDS.fillna(0) +
-    QUANT_ADDITIONAL_CARDS.fillna(0)
+    FLAG_OTHER_CARDS.fillna(0)
 )
+# NOTA: QUANT_ADDITIONAL_CARDS se elimina (constante 0), no se usa
 
 # Tiene tarjetas principales (Visa o Mastercard)
 HAS_MAJOR_CARDS = (FLAG_VISA.fillna(0) + FLAG_MASTERCARD.fillna(0) > 0).astype(int)
 ```
 
-### 5. **Features Geográficas** (4 features)
+### 5. **Features Geográficas** (3 features)
 
 ```python
 # Mismo estado residencia y trabajo
 SAME_STATE_RES_PROF = (RESIDENCIAL_STATE == PROFESSIONAL_STATE).astype(int)
-
-# Misma ciudad residencia y trabajo
-SAME_CITY_RES_PROF = (RESIDENCIAL_CITY == PROFESSIONAL_CITY).astype(int)
 
 # Mismo código postal residencia y trabajo
 SAME_ZIP_RES_PROF = (RESIDENCIAL_ZIP_3 == PROFESSIONAL_ZIP_3).astype(int)
@@ -445,6 +436,8 @@ SAME_ZIP_RES_PROF = (RESIDENCIAL_ZIP_3 == PROFESSIONAL_ZIP_3).astype(int)
 # Nació en el mismo estado donde reside
 BORN_IN_RESIDENCE_STATE = (STATE_OF_BIRTH == RESIDENCIAL_STATE).astype(int)
 ```
+
+**Nota:** `SAME_CITY_RES_PROF` fue removida porque `PROFESSIONAL_CITY` fue eliminada del dataset (alta cardinalidad + muchos missing).
 
 ### 6. **Features de Cuentas Bancarias** (2 features)
 
@@ -476,23 +469,25 @@ AGE_GROUP = pd.cut(
 
 **Nota:** `AGE_GROUP` se crea en el **Paso 4** (después de imputar missing values de AGE), pero se documenta aquí porque es parte del feature engineering.
 
-### 8. **Features de Missing Values (Indicadores)** (8 features)
+### 6. **Features de Missing Values (Indicadores)** (6 features)
 
 Se crean **binarias** (0/1) indicando si la variable original tiene missing:
 
 ```python
 # Indicadores de missing para variables importantes
-MISSING_PROFESSIONAL_CITY
-MISSING_PROFESSIONAL_BOROUGH
 MISSING_PROFESSION_CODE
 MISSING_MONTHS_IN_RESIDENCE
 MISSING_MATE_PROFESSION_CODE
-MISSING_EDUCATION_LEVEL_1
+MISSING_MATE_EDUCATION_LEVEL
 MISSING_RESIDENCE_TYPE
 MISSING_OCCUPATION_TYPE
 ```
 
-**Total de features creadas:** 19 nuevas features + 8 indicadores de missing = **27 nuevas columnas**
+**Nota:** `MISSING_PROFESSIONAL_CITY` y `MISSING_PROFESSIONAL_BOROUGH` fueron removidos porque estas columnas fueron eliminadas en el Paso 1 (alta cardinalidad + muchos missing).
+
+**Total de features creadas:** 17 nuevas features + 6 indicadores de missing = **23 nuevas columnas**
+
+**Nota:** Algunas features propuestas originalmente fueron removidas porque usaban columnas que se eliminan como constantes (DOCUMENTS_COUNT) o columnas que no existen (QUANT_ADDITIONAL_CARDS en TOTAL_CARDS).
 
 ---
 
@@ -511,24 +506,24 @@ if ID_COL in df.columns:
 
 - Se remueve la columna `ID_CLIENT` (identificador único, no útil para modelado)
 
-#### **1.2. Convertir Flags Y/N a 0/1**
+#### **1.2. Normalizar Columnas Y/N**
 
-**Antes** de detectar columnas constantes, se convierten estas columnas:
+**Antes** de detectar columnas constantes, se normalizan estas columnas:
 
-- `FLAG_RESIDENCIAL_PHONE`: Y→1, N→0
-- `FLAG_MOBILE_PHONE`: Y→1, N→0
-- `COMPANY`: Y→1, N→0
-- `FLAG_PROFESSIONAL_PHONE`: Y→1, N→0
-- `FLAG_ACSP_RECORD`: Y→1, N→0
+- `FLAG_RESIDENCIAL_PHONE`: Y/y/1→"Y", N/n/0→"N", mantener NaN
+- `FLAG_MOBILE_PHONE`: Y/y/1→"Y", N/n/0→"N", mantener NaN
+- `COMPANY`: Y/y/1→"Y", N/n/0→"N", mantener NaN
+- `FLAG_PROFESSIONAL_PHONE`: Y/y/1→"Y", N/n/0→"N", mantener NaN
+- `FLAG_ACSP_RECORD`: Y/y/1→"Y", N/n/0→"N", mantener NaN
 
 ```python
-df[col] = df[col].map({"Y": 1, "N": 0, "y": 1, "n": 0, 1: 1, 0: 0}).fillna(df[col])
-df[col] = pd.to_numeric(df[col], errors="coerce")
+df[col] = df[col].replace({"Y": "Y", "y": "Y", "N": "N", "n": "N", 1: "Y", 0: "N"})
+df[col] = df[col].astype(object)  # Mantener como object para preservar NaN
 ```
 
-**Razón:** Convertir antes de detectar constantes asegura que Y/N no se consideren constantes incorrectamente.
+**Razón:** Se normalizan a "Y"/"N" pero se mantienen como strings para preservar NaN como categoría distinta en el encoding posterior (Paso 5). Esto permite que el modelo aprenda de la ausencia de información.
 
-#### **1.3. Identificar y Remover Columnas Constantes**
+#### **1.3. Identificar y Remover Columnas Constantes y Alta Cardinalidad + Muchos Missing**
 
 **Solo en entrenamiento** (cuando `self.is_fitted == False`):
 
@@ -539,60 +534,48 @@ df[col] = pd.to_numeric(df[col], errors="coerce")
 # - Columnas numéricas con std() == 0 (sin varianza)
 constant_cols = [col for col in df.columns if ...]
 self.constant_columns_removed = constant_cols  # Guardar para aplicar después
+
+# Remover columnas de alta cardinalidad con muchos missing
+high_card_missing_cols = [col for col in HIGH_CARDINALITY_MANY_MISSING_COLS if col in df.columns]
+self.high_cardinality_many_missing_removed = high_card_missing_cols
 ```
 
-**Resultado típico:** Se remueven **9 columnas constantes** identificadas en el EDA:
+**Resultado típico:** Se remueven:
 
-- `CLERK_TYPE` (todos "C")
-- Varias columnas numéricas con todos ceros
-- Varias columnas categóricas con todos "N"
+- **9 columnas constantes** identificadas en el EDA:
+  - `CLERK_TYPE` (todos "C")
+  - `QUANT_ADDITIONAL_CARDS` (todos 1)
+  - `EDUCATION_LEVEL` (todos 1)
+  - `FLAG_MOBILE_PHONE` (todos "N")
+  - `FLAG_HOME_ADDRESS_DOCUMENT` (todos 0)
+  - `FLAG_RG` (todos 0)
+  - `FLAG_CPF` (todos 0)
+  - `FLAG_INCOME_PROOF` (todos 0)
+  - `FLAG_ACSP_RECORD` (todos "N")
+- **2 columnas de alta cardinalidad + muchos missing:**
+  - `PROFESSIONAL_CITY` (2,236 categorías, 67.6% missing)
+  - `PROFESSIONAL_BOROUGH` (5,057 categorías, 67.6% missing)
 
-**En producción:** Se usa la lista guardada `self.constant_columns_removed` para remover las mismas columnas.
+**En producción:** Se usa la lista guardada `self.constant_columns_removed` y `self.high_cardinality_many_missing_removed` para remover las mismas columnas.
 
-**Resultado:** De 53 columnas → **43 columnas** (después de remover 9 constantes + 1 ID)
+**Resultado:** De 53 columnas → **42 columnas** (después de remover 9 constantes + 2 alta cardinalidad + 1 ID)
 
 ---
 
 ### **Paso 2: Manejo de Outliers** (`_step2_handle_outliers`)
 
-#### **Método: Winsorization con Percentiles 1%-99%**
+#### **No se aplica Winsorization**
 
-**Variables procesadas** (definidas en `OUTLIER_COLS`):
-
-1. `PERSONAL_MONTHLY_INCOME` (2% outliers según EDA)
-2. `PERSONAL_ASSETS_VALUE` (0.96% outliers)
-3. `OTHER_INCOMES` (0.92% outliers)
-4. `AGE` (0.88% outliers)
-5. `MONTHS_IN_RESIDENCE` (0.85% outliers)
-6. `PROFESSION_CODE` (0.85% outliers)
-7. `MATE_PROFESSION_CODE` (0.43% outliers)
-8. `MARITAL_STATUS` (0.45% outliers)
-9. `QUANT_DEPENDANTS` (0.61% outliers)
-10. `MONTHS_IN_THE_JOB` (0.19% outliers)
+**Decisión:** Basado en el EDA, el porcentaje de outliers es bajo (~2% máximo) y los valores extremos son **informativos para credit risk**. Por ejemplo, un ingreso muy alto o muy bajo puede ser una señal importante para el modelo.
 
 **Proceso:**
 
 ```python
-# En entrenamiento: calcular límites
-lower = df[col].quantile(0.01)  # Percentil 1%
-upper = df[col].quantile(0.99)  # Percentil 99%
-self.outlier_limits[col] = {"lower": lower, "upper": upper}
-
-# Aplicar capping (clip)
-df[col] = df[col].clip(lower=limits["lower"], upper=limits["upper"])
+# Simplemente retorna una copia del DataFrame sin modificar
+return df.copy()
 ```
 
-**Resultado:**
-
-- Valores < percentil 1% → reemplazados por percentil 1%
-- Valores > percentil 99% → reemplazados por percentil 99%
-- Límites se guardan en `self.outlier_limits` para aplicar en producción
-
-**Ejemplo de límites típicos:**
-
-- `PERSONAL_MONTHLY_INCOME`: 207.99 - 3,734.03 R$
-- `PERSONAL_ASSETS_VALUE`: 0.00 - 50,000.00 R$
-- `AGE`: 18.00 - 79.00 años
+**Razón:** Los outliers en variables financieras (ingresos, activos) y demográficas (edad) pueden contener información valiosa sobre el perfil de riesgo del solicitante. El modelo puede aprender de estos valores extremos.
 
 ---
 
@@ -610,9 +593,9 @@ df[col] = df[col].clip(lower=limits["lower"], upper=limits["upper"])
 6. Features de cuentas bancarias (2)
 7. Features de edad (1: AGE_SQUARED; AGE_GROUP se crea en Paso 4)
 
-**Resultado:** De 43 columnas → **62 columnas** (43 originales + 19 nuevas)
+**Resultado:** De 42 columnas → **59 columnas** (42 originales + 17 nuevas)
 
-**Nota:** Los indicadores de missing (8) se crean en el Paso 4, no aquí.
+**Nota:** Los indicadores de missing (6) se crean en el Paso 4, no aquí.
 
 ---
 
@@ -620,7 +603,7 @@ df[col] = df[col].clip(lower=limits["lower"], upper=limits["upper"])
 
 #### **4.1. Crear Indicadores de Missing**
 
-**Antes** de imputar, se crean 8 indicadores binarios (0/1):
+**Antes** de imputar, se crean 6 indicadores binarios (0/1):
 
 ```python
 for col in MISSING_INDICATOR_COLS:
@@ -630,16 +613,16 @@ for col in MISSING_INDICATOR_COLS:
 
 **Variables con indicadores:**
 
-- `MISSING_PROFESSIONAL_CITY`
-- `MISSING_PROFESSIONAL_BOROUGH`
 - `MISSING_PROFESSION_CODE`
 - `MISSING_MONTHS_IN_RESIDENCE`
 - `MISSING_MATE_PROFESSION_CODE`
-- `MISSING_EDUCATION_LEVEL_1`
+- `MISSING_MATE_EDUCATION_LEVEL`
 - `MISSING_RESIDENCE_TYPE`
 - `MISSING_OCCUPATION_TYPE`
 
-**Resultado:** De 62 columnas → **70 columnas** (62 + 8 indicadores)
+**Nota:** `MISSING_PROFESSIONAL_CITY` y `MISSING_PROFESSIONAL_BOROUGH` no se crean porque estas columnas fueron removidas en el Paso 1.
+
+**Resultado:** De 59 columnas → **65 columnas** (59 + 6 indicadores)
 
 #### **4.2. Separar Columnas Categóricas y Numéricas**
 
@@ -652,13 +635,29 @@ self.numeric_columns = df.select_dtypes(include=["number"]).columns.tolist()
 
 #### **4.3. Imputar Categóricas con Moda**
 
+**Exclusiones importantes:**
+
+Las siguientes columnas se **excluyen** de la imputación categórica para preservar NaN como categoría distinta en encoding:
+
+- **Columnas Y/N:** `FLAG_RESIDENCIAL_PHONE`, `FLAG_MOBILE_PHONE`, `COMPANY`, `FLAG_PROFESSIONAL_PHONE`, `FLAG_ACSP_RECORD`
+- **Columnas binarias:** Cualquier columna con exactamente 2 valores únicos (excluyendo Y/N)
+- **Columnas de alta cardinalidad (>100 categorías):** `CITY_OF_BIRTH`, `RESIDENCIAL_CITY`, `RESIDENCIAL_BOROUGH`, `RESIDENCIAL_ZIP_3`, `PROFESSIONAL_ZIP_3`, `RESIDENCIAL_PHONE_AREA_CODE`, `PROFESSIONAL_PHONE_AREA_CODE`
+
+**Proceso:**
+
 ```python
+# Identificar columnas a excluir
+cols_to_exclude = yn_cols + binary_cols + high_cardinality_cols
+self.categorical_columns = [col for col in all_categorical_columns if col not in cols_to_exclude]
+
+# Imputar solo las columnas categóricas restantes
 self.categorical_imputer = SimpleImputer(strategy="most_frequent")
-# Se ajusta solo con datos de entrenamiento
 df[self.categorical_columns] = self.categorical_imputer.transform(df[self.categorical_columns])
 ```
 
 **Estrategia:** `most_frequent` (moda) - valor más común para cada columna.
+
+**Razón de exclusión:** Preservar NaN permite que el modelo aprenda de la ausencia de información. En Frequency Encoding, los NaN se convierten en "MISSING" con frecuencia baja, lo cual es informativo.
 
 #### **4.4. Imputar Numéricas con Mediana**
 
@@ -683,7 +682,7 @@ df["AGE_GROUP"] = pd.cut(
 df["AGE_GROUP"] = df["AGE_GROUP"].astype(str)  # Convertir a string para encoding
 ```
 
-**Resultado:** De 70 columnas → **71 columnas** (70 + 1 AGE_GROUP)
+**Resultado:** De 65 columnas → **66 columnas** (65 + 1 AGE_GROUP)
 
 ---
 
@@ -694,34 +693,88 @@ df["AGE_GROUP"] = df["AGE_GROUP"].astype(str)  # Convertir a string para encodin
 **Solo en entrenamiento**, se clasifican las categóricas:
 
 ```python
-# Binarias: exactamente 2 valores únicos
-self.binary_cat_columns = [col for col in cat_cols if df[col].nunique(dropna=True) == 2]
+# Y/N: columnas especiales que preservan NaN
+yn_cols_in_data = [col for col in YN_COLUMNS if col in df.columns]
+
+# Binarias: exactamente 2 valores únicos (excluyendo Y/N)
+self.binary_cat_columns = [col for col in cat_cols
+                          if col not in yn_cols_in_data
+                          and df[col].nunique(dropna=True) == 2]
 
 # Múltiples categorías: separar por cardinalidad
-multi_cat_columns = [col for col in cat_cols if col not in self.binary_cat_columns]
+multi_cat_columns = [col for col in cat_cols
+                     if col not in self.binary_cat_columns
+                     and col not in yn_cols_in_data]
 
 # Baja cardinalidad: ≤20 categorías (umbral configurable, default=20)
-self.ohe_cat_columns = [col for col in multi_cat_columns if df[col].nunique(dropna=True) <= self.low_cardinality_threshold]
+low_card_cols = [col for col in multi_cat_columns
+                if df[col].nunique(dropna=True) <= self.low_cardinality_threshold]
 
-# Alta cardinalidad: >20 categorías
-self.ordinal_cat_columns = [col for col in multi_cat_columns if col not in self.ohe_cat_columns]
+# Media cardinalidad: 21-100 categorías (agrupar poco frecuentes + OneHot)
+medium_card_cols = [col for col in multi_cat_columns
+                   if self.low_cardinality_threshold < df[col].nunique(dropna=True) <= GROUPING_THRESHOLD]
+
+# Alta cardinalidad: >100 categorías (Frequency Encoding)
+high_card_cols = [col for col in multi_cat_columns
+                 if df[col].nunique(dropna=True) > GROUPING_THRESHOLD]
+
+self.ohe_cat_columns = low_card_cols + medium_card_cols  # Ambas usan OneHot
+self.frequency_encoding_columns = high_card_cols
 ```
 
-#### **5.2. Encoding de Binarias: OrdinalEncoder**
+#### **5.2. Encoding de Binarias: OrdinalEncoder (preserva NaN)**
 
 ```python
+# Convertir NaN a "MISSING" para preservarlo como categoría
+binary_df = df[binary_cols].copy().fillna("MISSING")
+
 self.binary_encoder = OrdinalEncoder(
     handle_unknown="use_encoded_value",
-    unknown_value=-1  # Si aparece valor nuevo en producción, se codifica como -1
+    unknown_value=-1
 )
-df[binary_cols] = self.binary_encoder.transform(df[binary_cols])
+encoded_binary = self.binary_encoder.transform(binary_df)
 ```
 
-**Resultado:** Binarias se convierten a 0/1 numéricos (1 columna → 1 columna)
+**Resultado:** Binarias se convierten a números (0, 1, 2) donde 2 representa "MISSING" (1 columna → 1 columna)
 
 **Ejemplos:** `SEX` (M/F) → 0/1, `APPLICATION_SUBMISSION_TYPE` (Web/Carga) → 0/1
 
-#### **5.3. Encoding de Baja Cardinalidad: OneHotEncoder**
+#### **5.3. Encoding de Y/N: OrdinalEncoder (preserva NaN)**
+
+```python
+# Convertir NaN a "MISSING" para preservarlo como categoría
+yn_df = df[yn_cols_in_data].copy().fillna("MISSING")
+
+self.yn_encoder = OrdinalEncoder(
+    handle_unknown="use_encoded_value",
+    unknown_value=-1
+)
+encoded_yn = self.yn_encoder.transform(yn_df)
+```
+
+**Resultado:** Y/N se convierten a números (Y=0, N=1, MISSING=2) (1 columna → 1 columna)
+
+**Razón:** Preservar NaN como "MISSING" permite que el modelo aprenda de la ausencia de información.
+
+#### **5.4. Agrupación de Categorías Poco Frecuentes (Media Cardinalidad)**
+
+**Antes de aplicar OneHot**, se agrupan categorías con <10 ocurrencias en "OTROS":
+
+```python
+# Solo en entrenamiento
+for col in medium_card_cols:
+    value_counts = df[col].value_counts()
+    rare_categories = value_counts[value_counts < MIN_FREQUENCY_FOR_GROUPING].index.tolist()
+    if rare_categories:
+        self.rare_categories_map[col] = rare_categories  # Guardar para transformación
+        df[col] = df[col].replace(rare_categories, "OTROS")
+```
+
+**Resultado:** Reduce la cardinalidad efectiva antes de OneHot, evitando crear demasiadas columnas.
+
+**Ejemplo:** Si `PROFESSIONAL_PHONE_AREA_CODE` tiene 87 categorías pero 20 tienen <10 ocurrencias, se agrupan en "OTROS", quedando 68 categorías únicas.
+
+#### **5.5. Encoding de Baja y Media Cardinalidad: OneHotEncoder**
 
 ```python
 self.ohe_encoder = OneHotEncoder(
@@ -740,22 +793,51 @@ df = pd.concat([df, ohe_df], axis=1)  # Agregar columnas one-hot
 
 - `SEX` (M, F) → `SEX_M` (0/1), `SEX_F` (0/1) = **2 columnas**
 - `RESIDENCE_TYPE` (1, 2, 3, 4, 5) → `RESIDENCE_TYPE_1`, `RESIDENCE_TYPE_2`, ..., `RESIDENCE_TYPE_5` = **5 columnas**
+- `PROFESSIONAL_PHONE_AREA_CODE` (después de agrupar) → ~68 columnas
 
-#### **5.4. Encoding de Alta Cardinalidad: OrdinalEncoder**
+#### **5.6. Encoding de Alta Cardinalidad: Frequency Encoding**
+
+**Estrategia:** Codificar por frecuencia relativa (proporción de aparición) en lugar de orden arbitrario.
 
 ```python
-self.ordinal_encoder = OrdinalEncoder(
-    handle_unknown="use_encoded_value",
-    unknown_value=-1  # Si aparece categoría nueva, se codifica como -1
-)
-df[ordinal_cols] = self.ordinal_encoder.transform(df[ordinal_cols])
+# En entrenamiento: calcular frecuencias relativas
+for col in high_card_cols:
+    value_counts = df[col].value_counts()
+    total = len(df[col].dropna())
+    freq_map = (value_counts / total).to_dict()  # Categoría → frecuencia (0-1)
+
+    # Para NaN, usar frecuencia promedio de categorías raras
+    if pd.isna(df[col]).any():
+        rare_freq = value_counts[value_counts < MIN_FREQUENCY_FOR_GROUPING].sum() / total
+        freq_map["MISSING"] = rare_freq if rare_freq > 0 else 0.001
+
+    self.frequency_encoders[col] = freq_map
+
+# Aplicar encoding
+df[col] = df[col].fillna("MISSING").map(self.frequency_encoders[col])
+# Si hay categorías nuevas (unknown), usar frecuencia mínima
+if df[col].isna().any():
+    min_freq = min(self.frequency_encoders[col].values())
+    df[col] = df[col].fillna(min_freq)
+df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.001)
 ```
 
-**Resultado:** Alta cardinalidad se convierte a números ordinales (1 columna → 1 columna)
+**Resultado:** Alta cardinalidad se convierte a valores numéricos continuos (0-1) basados en frecuencia (1 columna → 1 columna)
 
-**Ejemplos:** `RESIDENCIAL_CITY`, `PROFESSIONAL_CITY`, `CITY_OF_BIRTH` (muchas categorías) → números 0, 1, 2, ...
+**Ventajas:**
 
-**Resultado final:** Aproximadamente **117 features** (varía según categorías únicas en cada columna)
+- **No introduce orden artificial** (a diferencia de OrdinalEncoder)
+- **Captura la frecuencia** de cada categoría (más frecuente = valor más alto)
+- **Maneja NaN** como "MISSING" con frecuencia baja
+- **Maneja categorías nuevas** usando frecuencia mínima
+
+**Ejemplos:**
+
+- `CITY_OF_BIRTH` (9,910 categorías) → valores 0.0001-0.05 según frecuencia
+- `RESIDENCIAL_BOROUGH` (14,511 categorías) → valores 0.0001-0.03 según frecuencia
+- `RESIDENCIAL_CITY` (3,529 categorías) → valores 0.0001-0.08 según frecuencia
+
+**Resultado final:** Aproximadamente **~117 features** (varía según categorías únicas en cada columna)
 
 ---
 
@@ -791,20 +873,22 @@ df[numeric_cols] = self.scaler.transform(df[numeric_cols])
     ↓ Paso 1: Limpieza
     - Remueve ID_CLIENT (1 columna)
     - Remueve 9 columnas constantes
-    = 43 columnas
+    - Remueve 2 columnas alta cardinalidad + muchos missing
+    = 42 columnas
     ↓ Paso 2: Outliers
-    - Winsorization (no cambia número de columnas)
-    = 43 columnas
+    - No se aplica Winsorization (outliers son informativos)
+    = 42 columnas
     ↓ Paso 3: Feature Engineering
-    - Crea 19 nuevas features
-    = 62 columnas
+    - Crea 17 nuevas features
+    = 59 columnas
     ↓ Paso 4: Missing Values
-    - Crea 8 indicadores de missing
+    - Crea 6 indicadores de missing
     - Crea AGE_GROUP (1 columna)
-    = 71 columnas
+    = 66 columnas
     ↓ Paso 5: Encoding
-    - OneHotEncoder expande columnas (1 → múltiples)
-    - OrdinalEncoder mantiene (1 → 1)
+    - OneHotEncoder expande columnas (1 → múltiples) para baja/media cardinalidad
+    - Frequency Encoding mantiene (1 → 1) para alta cardinalidad
+    - OrdinalEncoder mantiene (1 → 1) para binarias y Y/N
     = ~117 features
     ↓ Paso 6: Scaling
     - MinMaxScaler normaliza (no cambia número)
@@ -878,7 +962,7 @@ X_new_processed = pipeline.transform(X_new)  # Aplica transformaciones guardadas
 
    - Variables con muchos missing:
      - `PROFESSIONAL_CITY`, `PROFESSIONAL_BOROUGH` - Muchos missing
-     - `MATE_PROFESSION_CODE`, `EDUCATION_LEVEL_1` - Muchos missing
+     - `MATE_PROFESSION_CODE`, `MATE_EDUCATION_LEVEL` - Muchos missing
    - Usar indicadores de missing como features
    - Considerar que missing puede ser informativo (ej: no tiene trabajo formal)
 
@@ -946,24 +1030,14 @@ MISSING_INDICATOR_COLS = [
     "PROFESSION_CODE",
     "MONTHS_IN_RESIDENCE",
     "MATE_PROFESSION_CODE",
-    "EDUCATION_LEVEL_1",
+    "MATE_EDUCATION_LEVEL",
     "RESIDENCE_TYPE",
     "OCCUPATION_TYPE",
 ]
 
-# Variables para Winsorization
-OUTLIER_COLS = [
-    "PERSONAL_MONTHLY_INCOME",
-    "PERSONAL_ASSETS_VALUE",
-    "OTHER_INCOMES",
-    "AGE",
-    "MONTHS_IN_RESIDENCE",
-    "PROFESSION_CODE",
-    "MATE_PROFESSION_CODE",
-    "MARITAL_STATUS",
-    "QUANT_DEPENDANTS",
-    "MONTHS_IN_THE_JOB",
-]
+# Umbrales para estrategias de encoding según cardinalidad
+GROUPING_THRESHOLD = 100  # Columnas con >100 categorías: Frequency Encoding
+MIN_FREQUENCY_FOR_GROUPING = 10  # Categorías con <10 ocurrencias se agrupan en "OTROS"
 ```
 
 ---
@@ -981,10 +1055,12 @@ OUTLIER_COLS = [
    - OneHotEncoder: `handle_unknown="ignore"` → categorías nuevas = todas columnas en 0
    - OrdinalEncoder: `unknown_value=-1` → categorías nuevas = -1
 
-3. **Winsorization Limita Valores:**
+3. **Frequency Encoding para Alta Cardinalidad:**
 
-   - Valores extremos se recortan a percentiles 1%-99%
-   - Esto puede afectar predicciones si hay valores muy altos/bajos fuera del rango de entrenamiento
+   - Columnas con >100 categorías usan Frequency Encoding (frecuencia relativa)
+   - No introduce orden artificial como OrdinalEncoder
+   - NaN se preservan y se codifican como "MISSING" con frecuencia baja
+   - Categorías nuevas (unknown) usan frecuencia mínima
 
 4. **Missing Values Informativos:**
 
@@ -1002,9 +1078,11 @@ OUTLIER_COLS = [
 
 - **Hallazgos del EDA:** Ver `EDA_FINDINGS.md` para detalles completos
 - **Columnas constantes:** 9 columnas identificadas y removidas automáticamente
-- **Outliers:** Proporciones específicas por variable documentadas en EDA
-- **Feature Engineering:** `INCOME_RATIO` y otras features implementadas según hallazgos del EDA
+- **Columnas removidas:** 2 columnas de alta cardinalidad + muchos missing (PROFESSIONAL_CITY, PROFESSIONAL_BOROUGH)
+- **Outliers:** No se aplica Winsorization (outliers son informativos)
+- **Feature Engineering:** 17 features implementadas según hallazgos del EDA
+- **Encoding:** Frequency Encoding para alta cardinalidad (>100), agrupación + OneHot para media cardinalidad (21-100)
 
 ---
 
-**Estado:** ✅ Implementado y funcionando. Pipeline guardado en `data/processed/preprocessor.joblib`.
+**Estado:** ✅ Implementado y funcionando. Pipeline guardado en `models/preprocessor/preprocessor.joblib`.

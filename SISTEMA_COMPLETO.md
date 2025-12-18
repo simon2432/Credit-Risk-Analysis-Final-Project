@@ -18,14 +18,13 @@ Dataset Original (50,000 filas × 53 columnas)
     ↓
 PreprocessingPipeline.fit_transform()
     ↓ Transformación automática:
-      - Limpieza (remueve constantes, convierte Y/N → 0/1)
-      - Manejo de outliers (Winsorization 1%-99%)
-      - Feature Engineering (crea 19 nuevas features)
-      - Manejo de missing values (imputación + 8 indicadores)
+      - Limpieza (remueve constantes y columnas alta cardinalidad+missing, normaliza Y/N)
+      - Feature Engineering (crea 17 nuevas features)
+      - Manejo de missing values (imputación + 6 indicadores)
       - Encoding (OneHot para baja cardinalidad, Ordinal para alta)
       - Scaling (MinMaxScaler 0-1)
     ↓
-Dataset Procesado (50,000 filas × ~117 features numéricas)
+Dataset Procesado (50,000 filas × 286 features numéricas)
     ↓
 Entrenamiento de 3 modelos:
   - Logistic Regression (class_weight='balanced')
@@ -38,8 +37,8 @@ Cálculo de threshold óptimo (Youden's J statistic)
     ↓
 Guardado del mejor modelo:
   ✓ models/production/model.joblib (modelo)
-  ✓ data/processed/preprocessor.joblib (pipeline)
-  ✓ models/production/optimal_threshold.txt (threshold: 0.5059)
+  ✓ models/preprocessor/preprocessor.joblib (pipeline)
+  ✓ models/production/optimal_threshold.txt (threshold óptimo)
   ✓ models/production/metrics.txt (métricas de rendimiento)
 ```
 
@@ -68,7 +67,7 @@ API crea DataFrame con todas las 53 columnas originales
 PreprocessingPipeline.transform() (usa pipeline guardado)
   - Aplica TODAS las transformaciones guardadas
   - Mismo procesamiento que durante entrenamiento
-  - Resultado: ~117 features numéricas
+  - Resultado: 286 features numéricas finales
     ↓
 Modelo.predict_proba() → Obtiene probabilidad de default (0-1)
     ↓
@@ -102,32 +101,33 @@ Pipeline reutilizable que transforma datos raw en formato que el modelo entiende
 
 2. **Manejo de Outliers**
 
-   - Winsorization (percentiles 1%-99%)
-   - Limita valores extremos sin perder información
+   - No se aplica Winsorization
+   - Basado en el EDA, el porcentaje de outliers es bajo (~2% máximo)
+   - Los valores extremos son informativos para credit risk
 
 3. **Feature Engineering**
 
-   - Crea **19 nuevas features**:
-     - Ratios financieros (ingresos/activos, etc.)
-     - Scores de estabilidad (meses en residencia/trabajo)
-     - Conteos (tarjetas, documentos, contactos)
-     - Comparaciones geográficas (estado residencia vs nacimiento)
+   - Crea **17 nuevas features**:
+     - Ratios financieros (ingresos/activos, ingresos por dependiente, etc.)
+     - Scores de estabilidad (años en residencia/trabajo)
+     - Conteos (tarjetas, métodos de contacto)
+     - Comparaciones geográficas (estado residencia vs nacimiento, mismo ZIP, etc.)
      - Features de cuentas bancarias
-     - Grupos de edad
-   - **Resultado:** 43 columnas → 62 columnas
+     - Edad al cuadrado (relaciones no lineales)
+   - **Nota:** Features de documentos fueron removidas (usaban columnas constantes)
 
 4. **Manejo de Missing Values**
 
-   - Crea **8 indicadores binarios** para missing importantes
+   - Crea **6 indicadores binarios** para missing importantes
    - Imputa: moda para categóricas, mediana para numéricas
-   - **Resultado:** 62 → 71 columnas
+   - **Resultado:** ~62 → ~68 columnas
 
 5. **Encoding**
 
    - **Binarias (2 valores):** OrdinalEncoder
    - **Baja cardinalidad (≤20 categorías):** OneHotEncoder
    - **Alta cardinalidad (>20 categorías):** OrdinalEncoder
-   - **Resultado:** ~117 features numéricas finales
+   - **Resultado:** 286 features numéricas finales
 
 6. **Scaling**
    - MinMaxScaler (normaliza todas las features a rango 0-1)
@@ -197,10 +197,10 @@ El modelo mejoró significativamente con las optimizaciones aplicadas:
 
 ### **Optimizaciones Implementadas**
 
-1. ✅ **Threshold óptimo calculado dinámicamente** (0.5059)
+1. ✅ **Threshold óptimo calculado dinámicamente** (se calcula automáticamente para cada modelo)
 2. ✅ **Balanceo de clases** en todos los modelos
-3. ✅ **19 nuevas features** de feature engineering
-4. ✅ **8 indicadores de missing** para capturar información faltante
+3. ✅ **17 nuevas features** de feature engineering
+4. ✅ **6 indicadores de missing** para capturar información faltante
 5. ✅ **Hiperparámetros optimizados** (más árboles, profundidad controlada)
 6. ✅ **UI mejorada** con selectboxes descriptivos y opciones realistas
 7. ✅ **Campos opcionales manejan `None`** correctamente (no `0`)
@@ -229,7 +229,6 @@ Asegúrate de tener los archivos del dataset en la carpeta `data/raw/`:
 ```bash
 data/raw/
   ├── PAKDD2010_Modeling_Data.txt
-  ├── PAKDD2010_Prediction_Data.txt (opcional)
   └── PAKDD2010_VariablesList.XLS
 ```
 
@@ -294,7 +293,7 @@ python -m src.train_model
 5. ✅ Calcula el threshold óptimo
 6. ✅ Guarda todo en:
    - `models/production/model.joblib`
-   - `data/processed/preprocessor.joblib`
+   - `models/preprocessor/preprocessor.joblib` (nueva ubicación)
    - `models/production/optimal_threshold.txt`
    - `models/production/metrics.txt`
 

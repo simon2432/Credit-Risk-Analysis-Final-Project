@@ -32,6 +32,10 @@ services:
       - ./data/raw:/app/data/raw:ro
       # Mount para edición en vivo del código API (para desarrollo)
       - ./src/api:/app/src/api
+      # Mount para edición en vivo del código preprocessing (CRÍTICO para fix de outlier_limits)
+      - ./src/preprocessing.py:/app/src/preprocessing.py
+      # Mount para config y otros módulos necesarios
+      - ./src/config.py:/app/src/config.py
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1

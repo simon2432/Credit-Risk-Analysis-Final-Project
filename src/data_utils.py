@@ -23,16 +23,28 @@ def get_datasets() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     import os
     
-    # Intentar leer con openpyxl primero, luego xlrd si es necesario
+    # Intentar leer con xlrd primero (para .XLS), luego openpyxl si es necesario
     try:
-        column_descriptions = pd.read_excel(config.DATASET_DESCRIPTION, engine='openpyxl')
+        # Para archivos .XLS antiguos, usar xlrd
+        column_descriptions = pd.read_excel(config.DATASET_DESCRIPTION, engine='xlrd')
     except:
         try:
-            column_descriptions = pd.read_excel(config.DATASET_DESCRIPTION, engine='xlrd')
+            # Para archivos .XLSX modernos, usar openpyxl
+            column_descriptions = pd.read_excel(config.DATASET_DESCRIPTION, engine='openpyxl')
         except:
             # Si ambos fallan, intentar sin especificar engine
             column_descriptions = pd.read_excel(config.DATASET_DESCRIPTION)
-    col_names = _deduplicate(column_descriptions["Var_Title"].tolist())
+    
+    # Obtener los VALORES de la columna Var_Title (usar .values para evitar problemas con índices)
+    # Luego convertir a lista para asegurar que obtenemos los valores reales, no el índice
+    col_names_raw = column_descriptions["Var_Title"].values.tolist()
+    
+    # CORRECCIÓN: La columna 43 tiene EDUCATION_LEVEL pero debería ser MATE_EDUCATION_LEVEL
+    # (la columna 9 es EDUCATION_LEVEL del solicitante, la 43 es del cónyuge)
+    if len(col_names_raw) > 43 and col_names_raw[43] == "EDUCATION_LEVEL":
+        col_names_raw[43] = "MATE_EDUCATION_LEVEL"
+    
+    col_names = _deduplicate(col_names_raw)
 
     app_train = pd.read_csv(
         config.DATASET_TRAIN,
