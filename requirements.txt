@@ -6,9 +6,11 @@ xlrd>=2.0.1  # Required for reading Excel files (.xls)
 
 # Machine Learning
 scikit-learn==1.6.1  # Fijado a la versión usada para entrenar el modelo
+scipy>=1.10.0  #Agregado porque puede ser necesario para los deploys
 joblib>=1.3.0
 xgboost>=2.0.0
 lightgbm>=4.0.0
+catboost>=1.2.0
 
 # Jupyter notebooks
 jupyter>=1.0.0
