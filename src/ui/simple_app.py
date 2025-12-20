@@ -26,14 +26,488 @@ except FileNotFoundError:
 st.set_page_config(
     page_title="Credit Risk Analysis",
     page_icon="💳",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
-st.title("💳 Credit Risk Analysis")
-st.markdown("**Sistema de evaluación de riesgo crediticio usando Machine Learning**")
-st.markdown("Complete todos los campos disponibles para una evaluación más precisa. Los campos marcados con * son requeridos.")
+# ========== CSS PERSONALIZADO - TEMA OSCURO CON GRADIENTES PÚRPURA/AZUL ==========
+st.markdown("""
+<style>
+    /* Variables de color - Más oscuro y violeta más vibrante */
+    :root {
+        --bg-primary: #0A0A0F;
+        --bg-secondary: #0F0F1A;
+        --bg-card: rgba(22, 21, 38, 0.6);
+        --bg-input: rgba(15, 52, 96, 0.4);
+        --text-primary: #FFFFFF;
+        --text-secondary: #CCCCCC;
+        --gradient-purple: linear-gradient(135deg, #8A2BE2 0%, #9370DB 50%, #6A5ACD 100%);
+        --gradient-purple-pink: linear-gradient(135deg, #8A2BE2 0%, #BA55D3 50%, #FF00FF 100%);
+        --gradient-blue: linear-gradient(135deg, #483D8B 0%, #6A5ACD 50%, #9370DB 100%);
+        --accent-purple: #8A2BE2;
+        --accent-blue: #6A5ACD;
+        --shadow-purple: 0 8px 32px rgba(138, 43, 226, 0.3);
+        --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+    
+    /* Fondo principal - Más oscuro */
+    .stApp {
+        background: #0A0A0F !important;
+        color: var(--text-primary);
+    }
+    
+    /* Main container - fondo oscuro sólido - sin padding arriba */
+    .main .block-container {
+        background: #0A0A0F;
+        padding-top: 0 !important;
+        padding-bottom: 2rem;
+        margin-top: 0 !important;
+    }
+    
+    /* Eliminar padding del header de Streamlit */
+    header[data-testid="stHeader"] {
+        display: none !important;
+    }
+    
+    /* Eliminar espacio del top */
+    #MainMenu {
+        visibility: hidden;
+    }
+    
+    /* Eliminar cualquier margen superior */
+    .stApp > header {
+        display: none !important;
+    }
+    
+    /* Eliminar cualquier padding/margin del elemento principal */
+    .stApp > div:first-child {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+    
+    /* Eliminar espacio del viewport */
+    section[data-testid="stAppViewContainer"] {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+    
+    /* Asegurar que el primer div (con CSS y título) no tenga padding/margin extra */
+    .main .block-container > div[data-testid="stElementContainer"]:first-child:has(h1) {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* ELIMINAR COMPLETAMENTE CUALQUIER DIV VACÍO ANTES DEL TÍTULO */
+    .main .block-container > div:first-child:not(:has(h1)):not(:has(*)) {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        visibility: hidden !important;
+        overflow: hidden !important;
+        opacity: 0 !important;
+    }
+    
+    /* Ocultar elementos vacíos */
+    .main .block-container > div:empty,
+    .main .block-container > div:first-child:empty {
+        display: none !important;
+        height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    /* Ocultar bloques verticales que no contienen el título */
+    .main .block-container > div[data-testid="stVerticalBlock"]:first-child:not(:has(h1)) {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+    }
+    
+    /* Asegurar que el título sea el primer elemento visible */
+    .main .block-container > div:has(h1):first-child {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* Eliminar elementos vacíos antes del contenido */
+    .main .block-container > div:empty,
+    .main .block-container > div[style*="height"]:empty,
+    .element-container:empty {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* Forzar que el primer elemento markdown sea el primero visible */
+    .main .block-container > div[data-testid="stMarkdownContainer"]:first-child {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* Eliminar cualquier espacio antes del primer markdown */
+    .main .block-container > *:not([data-testid="stMarkdownContainer"]):first-child {
+        display: none !important;
+    }
+    
+    /* Eliminar elementos vacíos que Streamlit pueda insertar */
+    .main .block-container > div:first-child:empty,
+    .main .block-container > div[class*="st"]:first-child:empty {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* Ocultar cualquier elemento antes del primer markdown que tenga el título */
+    .main .block-container > div:first-child:not([data-testid="stMarkdownContainer"]) {
+        display: none !important;
+    }
+    
+    /* Ocultar elementos vacíos que Streamlit crea automáticamente */
+    .main .block-container > div:first-child[class*="st"],
+    .main .block-container > div:first-child[class*="element"],
+    .main > div:first-child > div:first-child:empty {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+    
+    /* Asegurar que solo el primer markdown con el título sea visible */
+    /* Si el primer elemento no contiene h1, ocultarlo completamente */
+    .main .block-container > div:first-child:not(:has(h1)):not([data-testid="stMarkdownContainer"]) {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        visibility: hidden !important;
+    }
+    
+    /* Ocultar cualquier div vacío o con solo espacios antes del título */
+    .main .block-container > div:first-child:empty,
+    .main .block-container > div:first-child:only-child:empty {
+        display: none !important;
+    }
+    
+    /* Headers y títulos */
+    h1, h2, h3 {
+        color: var(--text-primary) !important;
+        font-family: 'Inter', 'SF Pro', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-weight: 700 !important;
+    }
+    
+    h1 {
+        background: var(--gradient-purple);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    /* Texto general */
+    p, label, .stMarkdown, .stText {
+        color: var(--text-primary) !important;
+    }
+    
+    /* Subtítulos y descripciones */
+    .stMarkdown p {
+        color: var(--text-secondary) !important;
+    }
+    
+    /* Inputs y selectboxes - Flotantes - TODOS IGUALES */
+    .stNumberInput > div > div > input,
+    .stSelectbox > div > div > select,
+    .stTextInput > div > div > input {
+        background-color: rgba(15, 52, 96, 0.5) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid rgba(138, 43, 226, 0.5) !important;
+        border-radius: 12px !important;
+        padding: 0.75rem !important;
+        font-size: 0.95rem !important;
+        box-shadow: 0 2px 10px rgba(138, 43, 226, 0.2) !important;
+        transition: all 0.3s ease !important;
+        height: auto !important;
+    }
+    
+    .stNumberInput > div > div > input:focus,
+    .stSelectbox > div > div > select:focus,
+    .stTextInput > div > div > input:focus {
+        border-color: var(--accent-purple) !important;
+        box-shadow: 0 0 0 3px rgba(138, 43, 226, 0.3), 0 4px 15px rgba(138, 43, 226, 0.4) !important;
+        background-color: rgba(15, 52, 96, 0.7) !important;
+    }
+    
+    /* Asegurar que text_input tenga el mismo estilo */
+    .stTextInput > div > div {
+        width: 100% !important;
+    }
+    
+    .stTextInput input {
+        width: 100% !important;
+    }
+    
+    /* Labels de inputs */
+    label {
+        color: var(--text-primary) !important;
+        font-weight: 500 !important;
+        font-size: 0.9rem !important;
+    }
+    
+    /* Botones principales - Flotantes con gradiente vibrante */
+    .stButton > button {
+        background: linear-gradient(135deg, #8A2BE2 0%, #BA55D3 50%, #FF00FF 100%) !important;
+        color: var(--text-primary) !important;
+        border: none !important;
+        border-radius: 14px !important;
+        padding: 0.85rem 2rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 6px 25px rgba(138, 43, 226, 0.5), 0 0 20px rgba(255, 0, 255, 0.3) !important;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 8px 30px rgba(138, 43, 226, 0.7), 0 0 30px rgba(255, 0, 255, 0.5) !important;
+    }
+    
+    /* Botones secundarios (Martin/Martina) - Flotantes */
+    .stButton > button[kind="secondary"] {
+        background: rgba(22, 21, 38, 0.8) !important;
+        border: 2px solid rgba(138, 43, 226, 0.6) !important;
+        color: var(--text-primary) !important;
+        box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3) !important;
+    }
+    
+    .stButton > button[kind="secondary"]:hover {
+        background: rgba(138, 43, 226, 0.3) !important;
+        border-color: rgba(138, 43, 226, 0.9) !important;
+        box-shadow: 0 6px 20px rgba(138, 43, 226, 0.5) !important;
+        transform: translateY(-2px) !important;
+    }
+    
+    /* Cards y contenedores - Solo fuera del form */
+    .element-container {
+        background-color: rgba(22, 21, 38, 0.7) !important;
+        border-radius: 20px !important;
+        padding: 1.5rem !important;
+        margin-bottom: 1rem !important;
+        border: 1px solid rgba(138, 43, 226, 0.4) !important;
+        box-shadow: var(--shadow-card), 0 0 20px rgba(138, 43, 226, 0.1) !important;
+        backdrop-filter: blur(10px) !important;
+    }
+    
+    /* Dentro del form, elementos sin fondo ni borde */
+    [data-testid="stForm"] .element-container {
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0.5rem !important;
+        margin-bottom: 0.25rem !important;
+    }
+    
+    /* Subheaders - Completamente integrados */
+    .stSubheader {
+        color: var(--text-primary) !important;
+        font-weight: 600 !important;
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+        padding-bottom: 0.25rem !important;
+    }
+    
+    /* Subheaders dentro del form - sin borde, más integrados */
+    [data-testid="stForm"] .stSubheader,
+    [data-testid="stForm"] h3 {
+        margin-top: 0.75rem !important;
+        margin-bottom: 0.5rem !important;
+        padding-bottom: 0.25rem !important;
+        border-bottom: 1px solid rgba(138, 43, 226, 0.2) !important;
+    }
+    
+    /* Checkboxes */
+    .stCheckbox > label {
+        color: var(--text-primary) !important;
+    }
+    
+    .stCheckbox > label > div[data-baseweb="checkbox"] {
+        background-color: var(--bg-input) !important;
+        border-color: var(--accent-purple) !important;
+    }
+    
+    /* Success/Error messages */
+    .stSuccess {
+        background: linear-gradient(135deg, rgba(0, 200, 0, 0.2) 0%, rgba(0, 150, 0, 0.2) 100%) !important;
+        border-left: 4px solid #00C800 !important;
+        border-radius: 12px !important;
+        padding: 1rem !important;
+    }
+    
+    .stError {
+        background: linear-gradient(135deg, rgba(200, 0, 0, 0.2) 0%, rgba(150, 0, 0, 0.2) 100%) !important;
+        border-left: 4px solid #FF4444 !important;
+        border-radius: 12px !important;
+        padding: 1rem !important;
+    }
+    
+    .stWarning {
+        background: linear-gradient(135deg, rgba(255, 200, 0, 0.2) 0%, rgba(255, 150, 0, 0.2) 100%) !important;
+        border-left: 4px solid #FFC800 !important;
+        border-radius: 12px !important;
+        padding: 1rem !important;
+    }
+    
+    .stInfo {
+        background: linear-gradient(135deg, rgba(106, 90, 205, 0.2) 0%, rgba(138, 43, 226, 0.2) 100%) !important;
+        border-left: 4px solid var(--accent-purple) !important;
+        border-radius: 12px !important;
+        padding: 1rem !important;
+    }
+    
+    /* Métricas */
+    [data-testid="stMetricValue"] {
+        color: var(--text-primary) !important;
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: var(--text-secondary) !important;
+    }
+    
+    /* Progress bar */
+    .stProgress > div > div > div {
+        background: var(--gradient-purple) !important;
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        background-color: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(138, 43, 226, 0.3) !important;
+    }
+    
+    .streamlit-expanderContent {
+        background-color: rgba(15, 52, 96, 0.2) !important;
+        border-radius: 0 0 12px 12px !important;
+    }
+    
+    /* JSON viewer */
+    pre {
+        background-color: var(--bg-input) !important;
+        border: 1px solid rgba(138, 43, 226, 0.3) !important;
+        border-radius: 12px !important;
+        padding: 1rem !important;
+        color: var(--text-primary) !important;
+    }
+    
+    /* Dividers - Más sutiles */
+    hr {
+        border-color: rgba(138, 43, 226, 0.2) !important;
+        margin: 1.5rem 0 !important;
+        opacity: 0.5 !important;
+    }
+    
+    /* Footer */
+    .stCaption {
+        color: var(--text-secondary) !important;
+    }
+    
+    /* Spinner */
+    .stSpinner > div {
+        border-color: var(--accent-purple) transparent transparent transparent !important;
+    }
+    
+    /* Form container - Completamente unificado */
+    [data-testid="stForm"] {
+        background: rgba(22, 21, 38, 0.8) !important;
+        border-radius: 24px !important;
+        padding: 2rem !important;
+        border: 1px solid rgba(138, 43, 226, 0.4) !important;
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(138, 43, 226, 0.2) !important;
+        backdrop-filter: blur(15px) !important;
+        margin: 1rem 0 !important;
+    }
+    
+    /* Eliminar TODAS las divisiones visuales entre secciones */
+    .stSubheader {
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    /* Reducir MÁXIMO el espaciado entre elementos del formulario */
+    [data-testid="stForm"] .element-container {
+        margin-bottom: 0.25rem !important;
+        padding: 0.75rem !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    /* Columnas completamente unificadas - sin padding */
+    [data-testid="column"] {
+        padding: 0.1rem !important;
+    }
+    
+    /* Inputs integrados - sin separación visual */
+    [data-testid="stForm"] .stNumberInput,
+    [data-testid="stForm"] .stSelectbox,
+    [data-testid="stForm"] .stTextInput,
+    [data-testid="stForm"] .stCheckbox {
+        margin-bottom: 0.5rem !important;
+    }
+    
+    /* Eliminar márgenes entre elementos dentro del form */
+    [data-testid="stForm"] > div {
+        margin-bottom: 0 !important;
+    }
+    
+    /* Hacer que los inputs se vean más integrados */
+    [data-testid="stForm"] .stNumberInput > div,
+    [data-testid="stForm"] .stSelectbox > div,
+    [data-testid="stForm"] .stTextInput > div {
+        margin-bottom: 0.25rem !important;
+    }
+    
+    /* Columns spacing */
+    [data-testid="column"] {
+        padding: 0.5rem !important;
+    }
+</style>
+<div style="text-align: center; padding: 0 0 0.5rem 0; margin: 0;">
+    <h1 style="background: linear-gradient(135deg, #8A2BE2 0%, #9370DB 50%, #6A5ACD 100%); 
+               -webkit-background-clip: text; 
+               -webkit-text-fill-color: transparent; 
+               background-clip: text; 
+               font-size: 3rem; 
+               font-weight: 700; 
+               margin: 0; padding: 0;">
+        CREDIT RISK ANALYSIS
+    </h1>
+</div>
+""", unsafe_allow_html=True)
 
-st.markdown("---")
+# Texto descriptivo - Segundo div
+st.markdown("""
+<div style="text-align: center; padding: 0 0 1rem 0; margin: 0;">
+    <p style="color: #B0B0B0; font-size: 1.1rem; margin-top: 0; margin-bottom: 0.5rem; padding: 0;">
+        Credit risk evaluation system using Machine Learning
+    </p>
+    <p style="color: #B0B0B0; font-size: 0.95rem; margin: 0; padding: 0;">
+        Complete all available fields for a more accurate evaluation. Fields marked with * are required.
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
 # ========== PERFILES PREDEFINIDOS ==========
 def get_martin_profile():
@@ -128,77 +602,224 @@ def send_prediction_and_display(payload, profile_name=None):
                 probability = result.get("probability", 0.0)
                 confidence = result.get("confidence", "low")
                 
+                # Importar math para calcular coordenadas del gauge
+                import math
+                
                 st.markdown("---")
+                
+                # Header con gradiente
                 if profile_name:
-                    st.subheader(f"📊 Resultado de la Evaluación - {profile_name}")
+                    st.markdown(f"""
+                    <div style="text-align: center; padding: 1.5rem 0; margin-bottom: 2rem;">
+                        <h2 style="background: linear-gradient(135deg, #8A2BE2 0%, #9370DB 50%, #6A5ACD 100%); 
+                                   -webkit-background-clip: text; 
+                                   -webkit-text-fill-color: transparent; 
+                                   background-clip: text; 
+                                   font-size: 2rem; 
+                                   font-weight: 700;">
+                               EVALUATION RESULT - {profile_name}
+                        </h2>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.subheader("📊 Resultado de la Evaluación")
+                    st.markdown("""
+                    <div style="text-align: center; padding: 1.5rem 0; margin-bottom: 2rem;">
+                        <h2 style="background: linear-gradient(135deg, #8A2BE2 0%, #9370DB 50%, #6A5ACD 100%); 
+                                   -webkit-background-clip: text; 
+                                   -webkit-text-fill-color: transparent; 
+                                   background-clip: text; 
+                                   font-size: 2rem; 
+                                   font-weight: 700;">
+                               EVALUATION RESULT
+                        </h2>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
-                # Mostrar predicción con mejor formato
-                col_pred1, col_pred2 = st.columns([2, 1])
-                with col_pred1:
-                    if prediction.lower() == "approved":
-                        st.success(f"✅ **APROBADO** - La solicitud de crédito fue aprobada")
-                    elif prediction.lower() == "rejected":
-                        st.error(f"❌ **RECHAZADO** - La solicitud de crédito fue rechazada")
+                # Top section: Risk Gauge (left) and Approval/Confidence (right)
+                col_gauge, col_status = st.columns([1, 1])
+                
+                with col_gauge:
+                    # Determinar color según el nivel de riesgo
+                    if probability >= 0.7:
+                        gauge_color = "#FF4444"  # Red
+                    elif probability >= 0.5:
+                        gauge_color = "#FFC800"  # Orange
+                    elif probability >= 0.3:
+                        gauge_color = "#9370DB"  # Purple
                     else:
-                        st.warning(f"⚠️ **DESCONOCIDO** - Predicción: {prediction}")
-                with col_pred2:
-                    # Barra de probabilidad visual
-                    st.progress(probability)
-                    st.caption(f"{probability:.1%} riesgo")
+                        gauge_color = "#00C800"  # Green
+                    
+                    # Calcular el ángulo de la aguja para el gauge (0% = 180° izquierda, 100% = 0° derecha)
+                    needle_angle = 180 - (probability * 180)
+                    needle_angle_rad = math.radians(needle_angle)
+                    needle_x = 100 + 70 * math.cos(needle_angle_rad)
+                    needle_y = 100 - 70 * math.sin(needle_angle_rad)
+                    
+                    # Calcular stroke-dasharray para el arco
+                    arc_length = 251.33 * probability
+                    total_arc = 251.33
+                    
+                    # Construir el SVG como string
+                    svg_content = f'''<svg width="200" height="120" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M 20 100 A 80 80 0 0 1 180 100" 
+                                      fill="none" 
+                                      stroke="rgba(255, 255, 255, 0.2)" 
+                                      stroke-width="18" 
+                                      stroke-linecap="round"/>
+                                <path d="M 20 100 A 80 80 0 0 1 180 100" 
+                                      fill="none" 
+                                      stroke="{gauge_color}" 
+                                      stroke-width="18" 
+                                      stroke-linecap="round"
+                                      stroke-dasharray="{arc_length} {total_arc}"
+                                      style="filter: drop-shadow(0 0 8px {gauge_color});"/>
+                                <line x1="100" y1="100" x2="{needle_x:.2f}" y2="{needle_y:.2f}"
+                                      stroke="#FFFFFF" 
+                                      stroke-width="4" 
+                                      stroke-linecap="round"
+                                      style="filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.8));"/>
+                                <circle cx="100" cy="100" r="8" fill="#FFFFFF" style="filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8));"/>
+                            </svg>'''
+                    
+                    # Crear el gauge usando HTML/CSS
+                    st.markdown(f"""
+                    <div style="background: rgba(15, 52, 96, 0.3);
+                                border-radius: 20px;
+                                padding: 2rem;
+                                text-align: center;
+                                border: 1px solid rgba(138, 43, 226, 0.3);
+                                height: 280px;
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: center;
+                                align-items: center;">
+                        <div style="position: relative; width: 200px; height: 120px; margin-bottom: 1rem;">
+                            {svg_content}
+                        </div>
+                        <p style="color: #FFFFFF; margin: 0.5rem 0 0 0; font-size: 2.5rem; font-weight: 700;">{probability:.1%}</p>
+                        <p style="color: #B0B0B0; margin: 0.25rem 0 0 0; font-size: 0.9rem; font-weight: 500;">RISK</p>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
-                # Mostrar probabilidad y confianza
-                col_result1, col_result2 = st.columns(2)
-                with col_result1:
-                    st.metric(
-                        "Probabilidad de Default",
-                        f"{probability:.1%}",
-                        help="Probabilidad de que el cliente no pague (0% = muy seguro, 100% = muy riesgoso)"
-                    )
-                with col_result2:
+                with col_status:
+                    # Approval Status and Confidence
+                    if prediction.lower() == "approved":
+                        status_color = "#00C800"
+                        status_bg = "rgba(0, 200, 0, 0.2)"
+                        status_icon = "✅"
+                        status_text = "APPROVED"
+                        status_desc = "Credit application was approved"
+                    elif prediction.lower() == "rejected":
+                        status_color = "#FF4444"
+                        status_bg = "rgba(200, 0, 0, 0.2)"
+                        status_icon = "❌"
+                        status_text = "REJECTED"
+                        status_desc = "Credit application was rejected"
+                    else:
+                        status_color = "#FFC800"
+                        status_bg = "rgba(255, 200, 0, 0.2)"
+                        status_icon = "⚠️"
+                        status_text = "UNKNOWN"
+                        status_desc = f"Prediction: {prediction}"
+                    
                     confidence_labels = {
-                        "high": "Alta",
-                        "medium": "Media",
-                        "low": "Baja"
+                        "high": "High",
+                        "medium": "Medium",
+                        "low": "Low"
                     }
-                    st.metric(
-                        "Confianza",
-                        confidence_labels.get(confidence, confidence),
-                        help="Nivel de confianza de la predicción"
-                    )
+                    confidence_display = confidence_labels.get(confidence, confidence)
+                    
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, {status_bg} 0%, rgba(138, 43, 226, 0.1) 100%);
+                                border-left: 4px solid {status_color};
+                                border-radius: 20px;
+                                padding: 2rem;
+                                margin-bottom: 1rem;
+                                height: 130px;
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: center;">
+                        <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+                            <span style="font-size: 2rem; margin-right: 0.75rem;">{status_icon}</span>
+                            <h3 style="color: {status_color}; margin: 0; font-size: 1.8rem; font-weight: 700;">{status_text}</h3>
+                        </div>
+                        <p style="color: #B0B0B0; margin: 0; font-size: 0.95rem;">{status_desc}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown(f"""
+                    <div style="background: rgba(15, 52, 96, 0.3);
+                                border-radius: 20px;
+                                padding: 2rem;
+                                text-align: center;
+                                border: 1px solid rgba(138, 43, 226, 0.3);
+                                height: 130px;
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: center;">
+                        <p style="color: #B0B0B0; margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 500;">Confidence</p>
+                        <p style="color: #FFFFFF; margin: 0; font-size: 2.2rem; font-weight: 700;">{confidence_display}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
-                # Interpretación mejorada
+                # Mini message section (below top section)
+                st.markdown("<br>", unsafe_allow_html=True)
                 if probability >= 0.7:
-                    interpretation = f"**⚠️ Alto Riesgo:** Probabilidad de default de {probability:.1%}. Se recomienda rechazar la solicitud."
-                    st.warning(interpretation)
+                    risk_level = "HIGH RISK"
+                    risk_color = "#FFC800"
+                    risk_bg = "rgba(255, 200, 0, 0.2)"
+                    risk_icon = "⚠️"
+                    risk_message = f"Default probability of {probability:.1%}. Rejection of the application is recommended."
                 elif probability >= 0.5:
-                    interpretation = f"**🔶 Riesgo Moderado-Alto:** Probabilidad de default de {probability:.1%}. Se requiere revisión adicional."
-                    st.warning(interpretation)
+                    risk_level = "MODERATE-HIGH RISK"
+                    risk_color = "#FFC800"
+                    risk_bg = "rgba(255, 200, 0, 0.2)"
+                    risk_icon = "🔶"
+                    risk_message = f"Default probability of {probability:.1%}. Additional review required."
                 elif probability >= 0.3:
-                    interpretation = f"**🟡 Riesgo Moderado:** Probabilidad de default de {probability:.1%}. Evaluación cuidadosa recomendada."
-                    st.info(interpretation)
+                    risk_level = "MODERATE RISK"
+                    risk_color = "#9370DB"
+                    risk_bg = "rgba(106, 90, 205, 0.2)"
+                    risk_icon = "🟡"
+                    risk_message = f"Default probability of {probability:.1%}. Careful evaluation recommended."
                 else:
-                    interpretation = f"**✅ Bajo Riesgo:** Probabilidad de default de {probability:.1%}. Cliente con buen perfil crediticio."
-                    st.success(interpretation)
+                    risk_level = "LOW RISK"
+                    risk_color = "#00C800"
+                    risk_bg = "rgba(0, 200, 0, 0.2)"
+                    risk_icon = "✅"
+                    risk_message = f"Default probability of {probability:.1%}. Client with good credit profile."
+                
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, {risk_bg} 0%, rgba(138, 43, 226, 0.1) 100%);
+                            border-left: 4px solid {risk_color};
+                            border-radius: 12px;
+                            padding: 1.5rem;
+                            margin: 1rem 0;">
+                    <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 1.5rem; margin-right: 0.5rem;">{risk_icon}</span>
+                        <p style="color: {risk_color}; font-weight: 600; margin: 0; font-size: 1.2rem;">{risk_level}</p>
+                    </div>
+                    <p style="color: #B0B0B0; margin: 0; font-size: 1rem;">{risk_message}</p>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # Detalles expandibles
-                with st.expander("📋 Detalles Técnicos de la Consulta"):
-                    st.write("**Payload enviado a la API:**")
+                with st.expander("📋 Technical Details of the Query"):
+                    st.write("**Payload sent to API:**")
                     st.json(payload)
-                    st.write("**Respuesta completa de la API:**")
+                    st.write("**Complete API Response:**")
                     st.json(result)
             
             else:
-                st.error(f"❌ Error de API: Status {response.status_code}")
+                st.error(f"❌ API Error: Status {response.status_code}")
                 st.text(response.text)
         
         except requests.exceptions.ConnectionError:
-            st.error(f"❌ **Error de Conexión** - No se pudo conectar a la API en {API_URL}")
-            st.info("Asegúrate de que la API esté corriendo. Verifica con: `docker-compose ps`")
+            st.error(f"❌ **Connection Error** - Could not connect to API at {API_URL}")
+            st.info("Make sure the API is running. Verify with: `docker-compose ps`")
         
         except requests.exceptions.Timeout:
-            st.error("❌ **Timeout** - La API tardó demasiado en responder")
+            st.error("❌ **Timeout** - The API took too long to respond")
         
         except Exception as e:
             st.error(f"❌ **Error**: {str(e)}")
@@ -206,77 +827,83 @@ def send_prediction_and_display(payload, profile_name=None):
 # Formulario completo con TODAS las features
 with st.form("credit_risk_form"):
     
-    # ========== SECCIÓN 1: INFORMACIÓN BÁSICA Y APLICACIÓN ==========
-    st.subheader("📋 Información Básica y Aplicación")
+    # ========== SECTION 1: BASIC INFORMATION AND APPLICATION ==========
+    st.markdown("""
+    <div style="margin-top: 0.75rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(138, 43, 226, 0.2);">
+        <h3 style="color: #FFFFFF; font-weight: 600; font-size: 1.3rem; margin: 0;">
+            BASIC INFORMATION AND APPLICATION
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         payment_day = st.number_input(
-            "Día de pago *",
+            "Payment Day *",
             min_value=1,
             max_value=31,
             value=15,
             step=1,
-            help="Día del mes elegido para el pago (1-31)",
+            help="Day of the month chosen for payment (1-31)",
             key="payment_day"
         )
         
         application_type = st.selectbox(
-            "Tipo de aplicación *",
+            "Application Type *",
             options=["Web", "Carga"],
-            help="Cómo se envió la solicitud",
+            help="How the application was submitted",
             key="application_type"
         )
         
         product_options = {
-            "No especificado": None,
-            "1 - Producto A": 1,
-            "2 - Producto B": 2,
-            "3 - Producto C": 3,
-            "4 - Producto D": 4
+            "Not specified": None,
+            "1 - Product A": 1,
+            "2 - Product B": 2,
+            "3 - Product C": 3,
+            "4 - Product D": 4
         }
         product_selection = st.selectbox(
-            "Tipo de producto",
+            "Product Type",
             options=list(product_options.keys()),
-            help="Tipo de producto (opcional)",
+            help="Product type (optional)",
             key="product_select"
         )
         product = product_options[product_selection]
     
     with col2:
         age = st.number_input(
-            "Edad *",
+            "Age *",
             min_value=18,
             max_value=100,
             value=30,
             step=1,
-            help="Edad del solicitante",
+            help="Applicant's age",
             key="age"
         )
         
         sex = st.selectbox(
-            "Sexo *",
+            "Sex *",
             options=["M", "F"],
-            help="Sexo del solicitante",
+            help="Applicant's sex",
             key="sex"
         )
         
         quant_dependants = st.number_input(
-            "Cantidad de dependientes *",
+            "Number of Dependents *",
             min_value=0,
             max_value=20,
             value=0,
             step=1,
-            help="Número de personas que dependen del solicitante",
+            help="Number of people that depend on the applicant",
             key="dependants"
         )
     
     with col3:
         marital_status = st.selectbox(
-            "Estado civil",
-            options=["", "1 - Soltero", "2 - Casado", "3 - Divorciado", "4 - Viudo", "5 - Unión libre", "6 - Separado", "7 - Otro"],
-            help="Estado civil del solicitante (opcional)",
+            "Marital Status",
+            options=["", "1 - Single", "2 - Married", "3 - Divorced", "4 - Widowed", "5 - Civil Union", "6 - Separated", "7 - Other"],
+            help="Applicant's marital status (optional)",
             key="marital"
         )
         
@@ -284,9 +911,9 @@ with st.form("credit_risk_form"):
         state_birth_options = UI_OPTIONS.get("STATE_OF_BIRTH", [])
         state_birth_options_with_empty = [""] + state_birth_options
         state_of_birth = st.selectbox(
-            "Estado de nacimiento",
+            "State of Birth",
             options=state_birth_options_with_empty,
-            help="Estado donde nació (opcional). Seleccione de las opciones disponibles en el dataset.",
+            help="State where born (optional). Select from available options in the dataset.",
             key="state_birth"
         )
         state_of_birth = None if state_of_birth == "" else state_of_birth
@@ -295,31 +922,35 @@ with st.form("credit_risk_form"):
         # El usuario puede dejar vacío (None) o ingresar un valor
         # Si el valor no existe en el dataset, Frequency Encoding usará frecuencia mínima
         city_of_birth = st.text_input(
-            "Ciudad de nacimiento",
+            "City of Birth",
             value="",
-            help="Ciudad donde nació (opcional). Deje vacío si desconoce o ingrese el nombre exacto. Si no existe en el dataset, se manejará automáticamente.",
+            help="City where born (optional). Leave empty if unknown or enter exact name. If not in dataset, will be handled automatically.",
             key="city_birth"
         )
         city_of_birth = None if city_of_birth == "" else city_of_birth
         
         nacionality_options = {
-            "No especificado": None,
-            "1 - Brasileño": 1,
-            "2 - Argentino": 2,
-            "3 - Otro": 3
+            "Not specified": None,
+            "1 - Brazilian": 1,
+            "2 - Argentine": 2,
+            "3 - Other": 3
         }
         nacionality_selection = st.selectbox(
-            "Nacionalidad",
+            "Nationality",
             options=list(nacionality_options.keys()),
-            help="Nacionalidad (opcional)",
+            help="Nationality (optional)",
             key="nacionality_select"
         )
         nacionality = nacionality_options[nacionality_selection]
     
-    st.markdown("---")
-    
-    # ========== SECCIÓN 2: INFORMACIÓN FINANCIERA ==========
-    st.subheader("💰 Información Financiera")
+    # ========== SECTION 2: FINANCIAL INFORMATION ==========
+    st.markdown("""
+    <div style="margin-top: 0.75rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(138, 43, 226, 0.2);">
+        <h3 style="color: #FFFFFF; font-weight: 600; font-size: 1.3rem; margin: 0;">
+            FINANCIAL INFORMATION
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
     
     col4, col5, col6 = st.columns(3)
     
@@ -329,32 +960,32 @@ with st.form("credit_risk_form"):
         income_max = float(income_limits.get("max", 3678.22))
         income_threshold = income_max * 1.25  # Alerta después de 25% más que el máximo del dataset
         personal_income = st.number_input(
-            "Ingreso mensual personal (R$) *",
+            "Personal Monthly Income (R$) *",
             min_value=0.0,
             value=float(income_limits.get("median", 1500)),
             step=100.0,
-            help=f"Ingreso mensual regular del solicitante",
+            help=f"Applicant's regular monthly income",
             key="personal_income"
         )
         # Mostrar alerta si excede el umbral
         if personal_income > income_threshold:
-            st.warning(f"⚠️ El valor ingresado (R$ {personal_income:,.2f}) es significativamente mayor al máximo registrado anteriormente (R$ {income_max:.2f}).")
+            st.warning(f"⚠️ The entered value (R$ {personal_income:,.2f}) is significantly higher than the maximum previously recorded (R$ {income_max:.2f}).")
         
         # Otros ingresos - sin límite superior, con alerta si excede umbral
         other_income_limits = UI_OPTIONS.get("OTHER_INCOMES", {"min": 0.0, "max": 800.0})
         other_income_max = float(other_income_limits.get("max", 800.0))
         other_income_threshold = other_income_max * 1.25  # Alerta después de 25% más que el máximo
         other_incomes_input = st.number_input(
-            "Otros ingresos mensuales (R$)",
+            "Other Monthly Income (R$)",
             min_value=0.0,
             value=0.0,
             step=50.0,
-            help=f"Otros ingresos adicionales (opcional)",
+            help=f"Additional other income (optional)",
             key="other_incomes"
         )
         # Mostrar alerta si excede el umbral
         if other_incomes_input > other_income_threshold:
-            st.warning(f"⚠️ El valor ingresado (R$ {other_incomes_input:,.2f}) es significativamente mayor al máximo registrado anteriormente (R$ {other_income_max:.2f}).")
+            st.warning(f"⚠️ The entered value (R$ {other_incomes_input:,.2f}) is significantly higher than the maximum previously recorded (R$ {other_income_max:.2f}).")
         other_incomes = None if other_incomes_input == 0.0 else other_incomes_input
         
         # Valor de activos personales - sin límite superior, con alerta si excede umbral
@@ -362,79 +993,83 @@ with st.form("credit_risk_form"):
         assets_max = float(assets_limits.get("max", 50000.0))
         assets_threshold = assets_max * 1.25  # Alerta después de 25% más que el máximo
         assets_input = st.number_input(
-            "Valor de activos personales (R$)",
+            "Personal Assets Value (R$)",
             min_value=0.0,
             value=0.0,
             step=1000.0,
-            help=f"Valor total de propiedades, autos, etc. (opcional)",
+            help=f"Total value of properties, cars, etc. (optional)",
             key="assets_value"
         )
         # Mostrar alerta si excede el umbral
         if assets_input > assets_threshold:
-            st.warning(f"⚠️ El valor ingresado (R$ {assets_input:,.2f}) es significativamente mayor al máximo registrado anteriormente (R$ {assets_max:,.2f}).")
+            st.warning(f"⚠️ The entered value (R$ {assets_input:,.2f}) is significantly higher than the maximum previously recorded (R$ {assets_max:,.2f}).")
         assets_value = None if assets_input == 0.0 else assets_input
     
     with col5:
         # Cuentas bancarias con opciones
         banking_accounts_options = {
-            "No especificado": None,
+            "Not specified": None,
             "0": 0,
             "1": 1,
             "2": 2,
-            "3 o más": 3
+            "3 or more": 3
         }
         banking_accounts_selection = st.selectbox(
-            "Cantidad de cuentas bancarias",
+            "Number of Banking Accounts",
             options=list(banking_accounts_options.keys()),
-            help="Número de cuentas bancarias (opcional)",
+            help="Number of banking accounts (optional)",
             key="banking_accounts_select"
         )
         quant_banking_accounts = banking_accounts_options[banking_accounts_selection]
         
         # Cuentas especiales con opciones
         special_accounts_options = {
-            "No especificado": None,
+            "Not specified": None,
             "0": 0,
             "1": 1,
-            "2 o más": 2
+            "2 or more": 2
         }
         special_accounts_selection = st.selectbox(
-            "Cuentas bancarias especiales",
+            "Special Banking Accounts",
             options=list(special_accounts_options.keys()),
-            help="Cantidad de cuentas bancarias especiales (opcional)",
+            help="Number of special banking accounts (optional)",
             key="special_accounts_select"
         )
         quant_special_banking_accounts = special_accounts_options[special_accounts_selection]
         
         # Autos con opciones
         cars_options = {
-            "No especificado": None,
+            "Not specified": None,
             "0": 0,
             "1": 1,
             "2": 2,
-            "3 o más": 3
+            "3 or more": 3
         }
         cars_selection = st.selectbox(
-            "Cantidad de autos",
+            "Number of Cars",
             options=list(cars_options.keys()),
-            help="Número de vehículos (opcional)",
+            help="Number of vehicles (optional)",
             key="cars_select"
         )
         quant_cars = cars_options[cars_selection]
     
     with col6:
-        st.markdown("**Tarjetas de Crédito**")
+        st.markdown("**Credit Cards**")
         flag_visa = st.checkbox("Visa", key="visa")
         flag_mastercard = st.checkbox("Mastercard", key="mastercard")
         flag_diners = st.checkbox("Diners", key="diners")
         flag_amex = st.checkbox("American Express", key="amex")
-        flag_other_cards = st.checkbox("Otras tarjetas", key="other_cards")
-        flag_email = st.checkbox("Tiene email", key="email")
+        flag_other_cards = st.checkbox("Other Cards", key="other_cards")
+        flag_email = st.checkbox("Has Email", key="email")
     
-    st.markdown("---")
-    
-    # ========== SECCIÓN 3: RESIDENCIA ==========
-    st.subheader("🏠 Información de Residencia")
+    # ========== SECTION 3: RESIDENCE INFORMATION ==========
+    st.markdown("""
+    <div style="margin-top: 0.75rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(138, 43, 226, 0.2);">
+        <h3 style="color: #FFFFFF; font-weight: 600; font-size: 1.3rem; margin: 0;">
+            RESIDENCE INFORMATION
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
     
     col7, col8, col9 = st.columns(3)
     
@@ -443,9 +1078,9 @@ with st.form("credit_risk_form"):
         res_state_options = UI_OPTIONS.get("RESIDENCIAL_STATE", [])
         res_state_options_with_empty = [""] + res_state_options
         residencial_state = st.selectbox(
-            "Estado de residencia",
+            "Residence State",
             options=res_state_options_with_empty,
-            help="Estado donde reside (opcional). Seleccione de las opciones disponibles.",
+            help="State where resides (optional). Select from available options.",
             key="res_state"
         )
         residencial_state = None if residencial_state == "" else residencial_state
@@ -454,9 +1089,9 @@ with st.form("credit_risk_form"):
         # El usuario puede dejar vacío (None) o ingresar un valor
         # Si el valor no existe en el dataset, Frequency Encoding usará frecuencia mínima
         residencial_city = st.text_input(
-            "Ciudad de residencia",
+            "Residence City",
             value="",
-            help="Ciudad donde reside (opcional). Deje vacío si desconoce o ingrese el nombre exacto. Si no existe en el dataset, se manejará automáticamente.",
+            help="City where resides (optional). Leave empty if unknown or enter exact name. If not in dataset, will be handled automatically.",
             key="res_city"
         )
         residencial_city = None if residencial_city == "" else residencial_city
@@ -465,9 +1100,9 @@ with st.form("credit_risk_form"):
         # El usuario puede dejar vacío (None) o ingresar un valor
         # Si el valor no existe en el dataset, Frequency Encoding usará frecuencia mínima
         residencial_borough = st.text_input(
-            "Barrio de residencia",
+            "Residence Borough",
             value="",
-            help="Barrio donde reside (opcional). Deje vacío si desconoce o ingrese el nombre exacto. Si no existe en el dataset, se manejará automáticamente.",
+            help="Borough where resides (optional). Leave empty if unknown or enter exact name. If not in dataset, will be handled automatically.",
             key="res_borough"
         )
         residencial_borough = None if residencial_borough == "" else residencial_borough
@@ -477,9 +1112,9 @@ with st.form("credit_risk_form"):
         res_phone_area_options = UI_OPTIONS.get("RESIDENCIAL_PHONE_AREA_CODE", [])
         res_phone_area_options_with_empty = [""] + sorted(res_phone_area_options)
         residencial_phone_area_code = st.selectbox(
-            "Código de área teléfono residencial",
+            "Residential Phone Area Code",
             options=res_phone_area_options_with_empty,
-            help="Código de área (opcional). Seleccione de las opciones disponibles o deje vacío si desconoce.",
+            help="Area code (optional). Select from available options or leave empty if unknown.",
             key="res_phone_area"
         )
         residencial_phone_area_code = None if residencial_phone_area_code == "" else residencial_phone_area_code
@@ -489,80 +1124,84 @@ with st.form("credit_risk_form"):
         if len(res_zip_options) > 1000:
             # Si hay demasiadas, usar text_input
             residencial_zip_3 = st.text_input(
-                "Código postal (primeros 3 dígitos)",
+                "Zip Code (first 3 digits)",
                 value="",
-                help="Código postal (opcional). Deje vacío si desconoce o ingrese los primeros 3 dígitos. Si no existe en el dataset, se manejará automáticamente.",
+                help="Zip code (optional). Leave empty if unknown or enter first 3 digits. If not in dataset, will be handled automatically.",
                 key="res_zip"
             )
             residencial_zip_3 = None if residencial_zip_3 == "" else residencial_zip_3
         else:
             res_zip_options_with_empty = [""] + sorted(res_zip_options)
             residencial_zip_3 = st.selectbox(
-                "Código postal (primeros 3 dígitos)",
+                "Zip Code (first 3 digits)",
                 options=res_zip_options_with_empty,
-                help="Código postal (opcional). Seleccione de las opciones disponibles o deje vacío si desconoce.",
+                help="Zip code (optional). Select from available options or leave empty if unknown.",
                 key="res_zip"
             )
             residencial_zip_3 = None if residencial_zip_3 == "" else residencial_zip_3
     
     with col8:
         flag_residential_phone = st.selectbox(
-            "Teléfono residencial *",
+            "Residential Phone *",
             options=["Y", "N"],
-            help="¿Tiene teléfono residencial?",
+            help="Has residential phone?",
             key="residential_phone"
         )
         
         residence_type = st.selectbox(
-            "Tipo de residencia",
-            options=["", "1 - Propia", "2 - Alquilada", "3 - Cedida", "4 - Con familiares", "5 - Otro"],
-            help="Tipo de residencia actual (opcional)",
+            "Residence Type",
+            options=["", "1 - Owned", "2 - Rented", "3 - Loaned", "4 - With Family", "5 - Other"],
+            help="Current residence type (optional)",
             key="residence_type"
         )
         
         # Meses en residencia con opciones
         months_residence_options = {
-            "No especificado": None,
-            "Menos de 6 meses": 3,
-            "6 meses - 1 año": 9,
-            "1 - 2 años": 18,
-            "2 - 3 años": 30,
-            "Más de 3 años": 45
+            "Not specified": None,
+            "Less than 6 months": 3,
+            "6 months - 1 year": 9,
+            "1 - 2 years": 18,
+            "2 - 3 years": 30,
+            "More than 3 years": 45
         }
         months_residence_selection = st.selectbox(
-            "Meses en residencia actual",
+            "Months in Current Residence",
             options=list(months_residence_options.keys()),
-            help="Tiempo viviendo en la residencia actual (opcional)",
+            help="Time living in current residence (optional)",
             key="months_residence_select"
         )
         months_in_residence = months_residence_options[months_residence_selection]
         
         postal_address_options = {
-            "No especificado": None,
-            "1 - Residencial": 1,
-            "2 - Comercial": 2,
-            "3 - Otro": 3
+            "Not specified": None,
+            "1 - Residential": 1,
+            "2 - Commercial": 2,
+            "3 - Other": 3
         }
         postal_address_selection = st.selectbox(
-            "Tipo de dirección postal",
+            "Postal Address Type",
             options=list(postal_address_options.keys()),
-            help="Tipo de dirección postal (opcional)",
+            help="Postal address type (optional)",
             key="postal_address_select"
         )
         postal_address_type = postal_address_options[postal_address_selection]
     
-    st.markdown("---")
-    
-    # ========== SECCIÓN 4: EMPLEO ==========
-    st.subheader("💼 Información de Empleo")
+    # ========== SECTION 4: EMPLOYMENT INFORMATION ==========
+    st.markdown("""
+    <div style="margin-top: 0.75rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(138, 43, 226, 0.2);">
+        <h3 style="color: #FFFFFF; font-weight: 600; font-size: 1.3rem; margin: 0;">
+            EMPLOYMENT INFORMATION
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
     
     col10, col11, col12 = st.columns(3)
     
     with col10:
         company = st.selectbox(
-            "¿Tiene compañía/empleo formal? *",
+            "Has Company/Formal Employment? *",
             options=["Y", "N"],
-            help="¿Proporcionó nombre de compañía donde trabaja?",
+            help="Did provide company name where works?",
             key="company"
         )
         
@@ -570,9 +1209,9 @@ with st.form("credit_risk_form"):
         prof_state_options = UI_OPTIONS.get("PROFESSIONAL_STATE", [])
         prof_state_options_with_empty = [""] + prof_state_options
         professional_state = st.selectbox(
-            "Estado profesional",
+            "Professional State",
             options=prof_state_options_with_empty,
-            help="Estado donde trabaja (opcional). Seleccione de las opciones disponibles.",
+            help="State where works (optional). Select from available options.",
             key="prof_state"
         )
         professional_state = None if professional_state == "" else professional_state
@@ -582,9 +1221,9 @@ with st.form("credit_risk_form"):
     
     with col11:
         flag_professional_phone = st.selectbox(
-            "Teléfono profesional *",
+            "Professional Phone *",
             options=["Y", "N"],
-            help="¿Tiene teléfono profesional?",
+            help="Has professional phone?",
             key="professional_phone"
         )
         
@@ -593,9 +1232,9 @@ with st.form("credit_risk_form"):
         prof_phone_area_options = UI_OPTIONS.get("PROFESSIONAL_PHONE_AREA_CODE", [])
         prof_phone_area_options_with_empty = [""] + sorted(prof_phone_area_options)
         professional_phone_area_code = st.selectbox(
-            "Código de área teléfono profesional",
+            "Professional Phone Area Code",
             options=prof_phone_area_options_with_empty,
-            help="Código de área (opcional). Seleccione de las opciones disponibles o deje vacío si desconoce.",
+            help="Area code (optional). Select from available options or leave empty if unknown.",
             key="prof_phone_area"
         )
         professional_phone_area_code = None if professional_phone_area_code == "" else professional_phone_area_code
@@ -604,35 +1243,35 @@ with st.form("credit_risk_form"):
         prof_zip_options = UI_OPTIONS.get("PROFESSIONAL_ZIP_3", [])
         if len(prof_zip_options) > 1000:
             professional_zip_3 = st.text_input(
-                "Código postal profesional (primeros 3 dígitos)",
+                "Professional Zip Code (first 3 digits)",
                 value="",
-                help="Código postal (opcional). Deje vacío si desconoce o ingrese los primeros 3 dígitos. Si no existe en el dataset, se manejará automáticamente.",
+                help="Zip code (optional). Leave empty if unknown or enter first 3 digits. If not in dataset, will be handled automatically.",
                 key="prof_zip"
             )
             professional_zip_3 = None if professional_zip_3 == "" else professional_zip_3
         else:
             prof_zip_options_with_empty = [""] + sorted(prof_zip_options)
             professional_zip_3 = st.selectbox(
-                "Código postal profesional (primeros 3 dígitos)",
+                "Professional Zip Code (first 3 digits)",
                 options=prof_zip_options_with_empty,
-                help="Código postal (opcional). Seleccione de las opciones disponibles o deje vacío si desconoce.",
+                help="Zip code (optional). Select from available options or leave empty if unknown.",
                 key="prof_zip"
             )
             professional_zip_3 = None if professional_zip_3 == "" else professional_zip_3
         
         # Meses en trabajo con opciones
         months_job_options = {
-            "No especificado": None,
-            "Menos de 6 meses": 3,
-            "6 meses - 1 año": 9,
-            "1 - 2 años": 18,
-            "2 - 3 años": 30,
-            "Más de 3 años": 45
+            "Not specified": None,
+            "Less than 6 months": 3,
+            "6 months - 1 year": 9,
+            "1 - 2 years": 18,
+            "2 - 3 years": 30,
+            "More than 3 years": 45
         }
         months_job_selection = st.selectbox(
-            "Meses en trabajo actual",
+            "Months in Current Job",
             options=list(months_job_options.keys()),
-            help="Tiempo trabajando en el empleo actual (opcional)",
+            help="Time working in current job (optional)",
             key="months_job_select"
         )
         months_in_job = months_job_options[months_job_selection]
@@ -640,27 +1279,27 @@ with st.form("credit_risk_form"):
     with col12:
         # Código de profesión con opciones comunes
         profession_code_options = {
-            "No especificado": None,
-            "1 - Profesional": 1,
-            "2 - Técnico": 2,
-            "3 - Administrativo": 3,
-            "4 - Comercial": 4,
-            "5 - Servicios": 5,
-            "6 - Operario": 6,
-            "7 - Otro": 7
+            "Not specified": None,
+            "1 - Professional": 1,
+            "2 - Technical": 2,
+            "3 - Administrative": 3,
+            "4 - Commercial": 4,
+            "5 - Services": 5,
+            "6 - Operator": 6,
+            "7 - Other": 7
         }
         profession_code_selection = st.selectbox(
-            "Código de profesión",
+            "Profession Code",
             options=list(profession_code_options.keys()),
-            help="Código de profesión (opcional)",
+            help="Profession code (optional)",
             key="profession_select"
         )
         profession_code = profession_code_options[profession_code_selection]
         
         occupation_type = st.selectbox(
-            "Tipo de ocupación",
-            options=["", "1 - Empleado", "2 - Autónomo", "3 - Empresario", "4 - Desempleado", "5 - Otro"],
-            help="Tipo de ocupación laboral (opcional)",
+            "Occupation Type",
+            options=["", "1 - Employee", "2 - Self-employed", "3 - Business Owner", "4 - Unemployed", "5 - Other"],
+            help="Occupation type (optional)",
             key="occupation"
         )
         
@@ -683,30 +1322,29 @@ with st.form("credit_risk_form"):
         mate_profession_code = mate_profession_options[mate_profession_selection]
         
         education_level_options = {
-            "No especificado": None,
-            "1 - Primario": 1,
-            "2 - Secundario": 2,
-            "3 - Terciario": 3,
-            "4 - Universitario": 4
+            "Not specified": None,
+            "1 - Primary": 1,
+            "2 - Secondary": 2,
+            "3 - Tertiary": 3,
+            "4 - University": 4
         }
         education_level_selection = st.selectbox(
-            "Nivel educativo del cónyuge",
+            "Spouse Education Level",
             options=list(education_level_options.keys()),
-            help="Nivel educativo del cónyuge (opcional)",
+            help="Spouse education level (optional)",
             key="education_level_1_select"
         )
         education_level_1 = education_level_options[education_level_selection]
     
-    st.markdown("---")
-    
-    # Submit buttons
+    # Submit buttons con estilo mejorado
+    st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 1])
     with col_btn1:
-        submitted = st.form_submit_button("🔍 Evaluar Riesgo Crediticio", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("Evaluate Credit Risk", type="primary", use_container_width=True)
     with col_btn2:
-        martin_clicked = st.form_submit_button("👤 Martin (Alto Riesgo)", use_container_width=True)
+        martin_clicked = st.form_submit_button("Martin (High Risk)", type="secondary", use_container_width=True)
     with col_btn3:
-        martina_clicked = st.form_submit_button("👤 Martina (Bajo Riesgo)", use_container_width=True)
+        martina_clicked = st.form_submit_button("Martina (Low Risk)", type="secondary", use_container_width=True)
     
     # Verificar qué botón fue presionado
     use_martin = martin_clicked
@@ -808,13 +1446,16 @@ with st.form("credit_risk_form"):
         # Enviar request usando la función helper
         profile_name = None
         if use_martin:
-            profile_name = "Martin (Alto Riesgo)"
+            profile_name = "Martin (High Risk)"
         elif use_martina:
-            profile_name = "Martina (Bajo Riesgo)"
+            profile_name = "Martina (Low Risk)"
         
         send_prediction_and_display(payload, profile_name)
 
-# Footer
-st.markdown("---")
-st.caption(f"🌐 API URL: {API_URL}")
-st.caption("💡 Nota: Los campos marcados con * son requeridos. Complete todos los campos disponibles para una evaluación más precisa.")
+# Footer con estilo mejorado
+st.markdown(f"""
+<div style="text-align: center; padding: 1.5rem 0; color: #B0B0B0;">
+    <p style="margin: 0.5rem 0;">API URL: <code style="background: rgba(138, 43, 226, 0.2); padding: 0.25rem 0.5rem; border-radius: 6px;">{API_URL}</code></p>
+    <p style="margin: 0.5rem 0; font-size: 0.9rem;">Note: Fields marked with * are required. Complete all available fields for a more accurate evaluation.</p>
+</div>
+""", unsafe_allow_html=True)

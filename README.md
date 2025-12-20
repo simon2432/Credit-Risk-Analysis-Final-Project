@@ -21,11 +21,11 @@ This project aims to develop a complete credit risk analysis system using Machin
 Credit-Risk-Analysis-Final-Project/
 ├── data/
 │   ├── raw/              # Original PAKDD2010 dataset unprocessed
-│   │   ├── PAKDD2010_Modeling_Data.txt
-│   │   ├── PAKDD2010_Prediction_Data.txt
-│   │   ├── PAKDD2010_VariablesList.XLS
-│   │   └── ...
-│   └── processed/        # Clean and preprocessed dataset (to be created)
+│      ├── PAKDD2010_Modeling_Data.txt
+│      ├── PAKDD2010_Prediction_Data.txt
+│      ├── PAKDD2010_VariablesList.XLS
+│      └── ...
+│
 ├── notebooks/
 │   └── EDA/              # Exploratory data analysis notebooks
 │       ├── maria_EDA.ipynb
