@@ -150,7 +150,7 @@ def evaluate_podium_cv(
     scoring = scoring or DEFAULT_SCORING
     cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
     
-    results = Dict[str, Dict[str, float]] = {}
+    results: Dict[str, Dict[str, float]] = {}
     
     for name, pipe in podium.items():
         out = cross_validate(
@@ -211,7 +211,7 @@ def _get_proba(pipe: Pipeline, X: pd.DataFrame) -> np.ndarray:
     Assumes classifier supports predict_proba.
     """
     if hasattr(pipe, "predict_proba"):
-        proba = pipe.predict_porba(X)
+        proba = pipe.predict_proba(X)
         return np.asarray(proba)[:, 1]
     raise TypeError("Model does not support predict_proba().")
 

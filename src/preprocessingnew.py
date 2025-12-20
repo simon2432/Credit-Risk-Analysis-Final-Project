@@ -51,7 +51,7 @@ class PreprocessConfig:
     )
 
     # Outlier capping (winsorization) – based on your EDA outlier list
-    winsorize_cols: tuple[str, ---] = (
+    winsorize_cols: tuple[str, ...] = (
         "PERSONAL_MONTHLY_INCOME",
         "OTHER_INCOMES",
         "PERSONAL_ASSETS_VALUE",
@@ -92,9 +92,11 @@ class CleanNullLikeStrings(BaseEstimator, TransformerMixin):
         obj_cols = X.select_dtypes(include=["object", "string"]).columns
         for col in obj_cols:
             s = X[col].astype("string").str.strip()
-            s = s.replace("", pd.NA)
-            s = s.where(~s.str.match(self._null_re, na=False), pd.NA)
-            X[col] = s
+            s = s.replace("", np.nan)
+            s = s.where(~s.str.match(self._null_re, na=False), np.nan)
+
+            s_obj = s.astype(object)
+            X[col] = s_obj.where(pd.notna(s_obj), np.nan)
         
         return X
     

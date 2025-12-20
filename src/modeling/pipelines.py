@@ -35,8 +35,7 @@ def make_catboost_pipeline():
     return Pipeline([
         ("prep", build_preprocessing_pipeline()),
         ("model", CatBoostClassifier(
-            loss_function="logloss",
-            eval_metrics="AUC",
+            loss_function="Logloss",
             random_seed=42,
             verbose=False,
             scale_pos_weight=float(POS_WEIGHT),
