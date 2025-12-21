@@ -1,119 +1,111 @@
 # Credit Risk Analysis - Final Project
 
-## 📋 Project Description
+## 📋 Project Overview
 
-This project aims to develop a complete credit risk analysis system using Machine Learning techniques. The system will evaluate the probability of customer default and make informed decisions about credit approval or rejection.
+A complete **Credit Risk Analysis System** using Machine Learning to evaluate the probability of customer default and make automated loan approval/rejection decisions. The system consists of a trained ML model (Gradient Boosting, XGBoost, LightGBM), a FastAPI REST API, and a Streamlit web interface for real-time credit risk evaluation.
 
 **Dataset**: PAKDD2010 - Credit Risk Analysis Dataset
 
-## 🎯 Objectives
+## 🏗️ Architecture
 
-1. **EDA (Exploratory Data Analysis)**: Perform a complete exploratory analysis of the customer and credit dataset.
-2. **Preprocessing Pipeline**: Design a standard preprocessing pipeline for the entire team.
-3. **Model Training**: Train and compare various ML models for credit risk (logistic regression, decision trees, ensembles, etc.).
-4. **Model Selection**: Choose a final model based on evaluation metrics.
-5. **API Deployment**: Expose the model through a REST API using FastAPI.
-6. **UI Demo**: Build a simple interface (Streamlit) to demonstrate how a "bank" would use the model to approve/reject credits.
+The system is built using **Docker Compose** with 3 microservices:
+
+- **Model Service**: Data container storing trained models and preprocessor
+- **API Service** (FastAPI): REST API on port `8000` for predictions
+- **UI Service** (Streamlit): Web interface on port `8501` for credit evaluation
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- Dataset files placed in `data/raw/`:
+  - `PAKDD2010_Modeling_Data.txt`
+  - `PAKDD2010_VariablesList.XLS`
+
+### 1. Train the Model
+
+First, train the model and generate the preprocessor:
+
+```bash
+python -m src.train_model
+```
+
+This will:
+
+- Load and preprocess the dataset
+- Train multiple models (Gradient Boosting, XGBoost, LightGBM)
+- Select the best model based on ROC-AUC
+- Save the model to `models/production/model.joblib`
+- Save the preprocessor to `models/preprocessor/preprocessor.joblib`
+
+### 2. Start the System
+
+Start all services with Docker Compose:
+
+```bash
+# First time (builds Docker images)
+docker-compose up --build
+
+# Subsequent times (faster)
+docker-compose up
+```
+
+Or run in background:
+
+```bash
+docker-compose up -d
+```
+
+### 3. Access the Application
+
+- **UI Interface**: http://localhost:8501
+- **API Documentation**: http://localhost:8000/docs
+- **API Health Check**: http://localhost:8000/health
 
 ## 📁 Project Structure
 
 ```
 Credit-Risk-Analysis-Final-Project/
 ├── data/
-│   ├── raw/              # Original PAKDD2010 dataset unprocessed
-│      ├── PAKDD2010_Modeling_Data.txt
-│      ├── PAKDD2010_Prediction_Data.txt
-│      ├── PAKDD2010_VariablesList.XLS
-│      └── ...
-│
+│   └── raw/                    # Dataset files (PAKDD2010)
 ├── notebooks/
-│   └── EDA/              # Exploratory data analysis notebooks
-│       ├── maria_EDA.ipynb
-│       └── simon_EDA_ordered.ipynb
-├── src/                  # Python source code
-│   ├── __init__.py
-│   ├── preprocessing.py  # Preprocessing pipeline
-│   ├── train_model.py    # Model training script
-│   ├── data_utils.py     # Data loading utilities
-│   ├── models_config.py  # Model configurations
-│   ├── config.py         # Configuration paths
-│   ├── api/              # FastAPI service
-│   │   ├── server.py
-│   │   └── feature_mapper.py
-│   └── ui/               # Streamlit UI
-│       ├── simple_app.py
-│       └── ui_options.json
-├── models/               # Saved trained models (gitignored, except .gitkeep)
-├── data/
-│   ├── raw/              # Original dataset (gitignored, except .gitkeep)
-│   └── processed/        # Processed data (gitignored, except .gitkeep)
-├── Dockerfile            # Docker for API + model
-├── docker-compose.yml    # Service orchestration
-├── requirements.txt      # Project dependencies
-└── README.md             # This file
+│   └── EDA/                    # Exploratory data analysis
+├── src/
+│   ├── preprocessing.py        # Preprocessing pipeline
+│   ├── train_model.py          # Model training script
+│   ├── models_config.py        # Model configurations
+│   ├── api/
+│   │   └── server.py           # FastAPI service
+│   └── ui/
+│       └── simple_app.py       # Streamlit UI
+├── models/
+│   ├── production/             # Trained model (generated)
+│   └── preprocessor/           # Preprocessor (generated)
+├── docker-compose.yml          # Service orchestration
+└── requirements.txt            # Python dependencies
 ```
 
-## 🚀 Installation and Setup
+## 📚 Documentation
 
-### 1. Create virtual environment
+For detailed information, see:
 
-```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
-
-# Linux/Mac
-python -m venv venv
-source venv/bin/activate
-```
-
-### 2. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Verify installation
-
-```bash
-python -c "import pandas, sklearn, fastapi; print('Dependencies installed correctly')"
-```
-
-## 📝 Current Project Status
-
-The project is **fully functional** and ready for use:
-
-- ✅ **Folder structure**: Complete project organization
-- ✅ **Dataset**: PAKDD2010 data processing implemented
-- ✅ **EDA**: Exploratory analysis completed (`notebooks/EDA/`)
-- ✅ **Preprocessing**: Complete preprocessing pipeline implemented (`src/preprocessing.py`)
-- ✅ **Models**: Training and comparison implemented (`src/train_model.py`)
-  - Logistic Regression, Random Forest, Gradient Boosting
-  - Automatic model selection based on ROC-AUC
-  - Optimal threshold calculation
-- ✅ **API**: FastAPI service implemented (`src/api/server.py`)
-  - `/predict` endpoint for credit risk evaluation
-  - Automatic model and preprocessor loading
-- ✅ **UI**: Streamlit interface implemented (`src/ui/simple_app.py`)
-  - User-friendly form for credit evaluation
-  - Real-time predictions via API
-
-## 📝 Quick Start
-
-For detailed instructions, see:
-
-- **`SISTEMA_COMPLETO.md`**: Complete system documentation with quick start guide
-- **`DOCKER_QUICK.md`**: Docker setup and usage guide
+- **`SISTEMA_COMPLETO.md`**: Complete system documentation
+- **`PREPROCESSING_PLAN.md`**: Preprocessing pipeline details
 - **`MODELOS_PERSONALIZADOS.md`**: Guide to add custom models
-- **`PREPROCESSING_PLAN.md`**: Detailed preprocessing documentation
+- **`DOCKER_QUICK.md`**: Docker usage guide
 
-**Quick setup:**
+## 🔧 Useful Commands
 
-1. Place dataset files in `data/raw/`
-2. Run `docker-compose up --build`
-3. Train models: `python -m src.train_model`
-4. Use UI: http://localhost:8501
+```bash
+# View logs
+docker-compose logs -f          # All services
+docker-compose logs -f api      # API only
+docker-compose logs -f ui       # UI only
 
-## 👥 Team
+# Stop services
+docker-compose down
 
-This project is being developed by a team of 6 people.
+# Rebuild after code changes
+docker-compose up --build
+```

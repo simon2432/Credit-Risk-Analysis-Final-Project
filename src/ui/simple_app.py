@@ -23,6 +23,24 @@ except FileNotFoundError:
     st.error(f"Error: No se encontró el archivo {UI_OPTIONS_FILE}. Ejecuta: python -m src.ui.extract_ui_options")
     UI_OPTIONS = {}
 
+# Cargar perfiles predefinidos desde JSON
+PROFILES_FILE = Path(__file__).parent / "profiles.json"
+try:
+    with open(PROFILES_FILE, "r", encoding="utf-8") as f:
+        PROFILES = json.load(f)
+except FileNotFoundError:
+    st.error(f"Error: No se encontró el archivo {PROFILES_FILE}")
+    PROFILES = {}
+
+def get_profile_data(profile_key):
+    """Obtiene los datos de un perfil desde el archivo JSON"""
+    if profile_key in PROFILES:
+        # Convertir None de JSON a None de Python
+        profile_data = PROFILES[profile_key]["data"]
+        # Convertir valores None (que vienen como null en JSON) a None de Python
+        return {k: (None if v is None else v) for k, v in profile_data.items()}
+    return None
+
 st.set_page_config(
     page_title="Credit Risk Analysis",
     page_icon="💳",
@@ -483,6 +501,7 @@ st.markdown("""
     [data-testid="column"] {
         padding: 0.5rem !important;
     }
+    
 </style>
 <div style="text-align: center; padding: 0 0 0.5rem 0; margin: 0;">
     <h1 style="background: linear-gradient(135deg, #8A2BE2 0%, #9370DB 50%, #6A5ACD 100%); 
@@ -510,84 +529,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ========== PERFILES PREDEFINIDOS ==========
-def get_martin_profile():
-    """Perfil de alto riesgo - debería ser rechazado"""
-    return {
-        "PAYMENT_DAY": 25,
-        "APPLICATION_SUBMISSION_TYPE": "Carga",
-        "SEX": "M",
-        "AGE": 25,
-        "QUANT_DEPENDANTS": 4,
-        "PERSONAL_MONTHLY_INCOME": 800.0,
-        "FLAG_RESIDENCIAL_PHONE": "N",
-        "COMPANY": "N",
-        "FLAG_PROFESSIONAL_PHONE": "N",
-        "MARITAL_STATUS": 1,
-        "STATE_OF_BIRTH": "SP",
-        "CITY_OF_BIRTH": "Sao Paulo",
-        "NACIONALITY": 1,
-        "OTHER_INCOMES": None,
-        "PERSONAL_ASSETS_VALUE": None,
-        "QUANT_BANKING_ACCOUNTS": 0,
-        "QUANT_SPECIAL_BANKING_ACCOUNTS": 0,
-        "QUANT_CARS": 0,
-        "FLAG_VISA": 0,
-        "FLAG_MASTERCARD": 0,
-        "FLAG_DINERS": 0,
-        "FLAG_AMERICAN_EXPRESS": 0,
-        "FLAG_OTHER_CARDS": 0,
-        "FLAG_EMAIL": 0,
-        "RESIDENCIAL_STATE": "SP",
-        "RESIDENCIAL_CITY": "Sao Paulo",
-        "RESIDENCE_TYPE": 2,
-        "MONTHS_IN_RESIDENCE": 3.0,
-        "PROFESSION_CODE": 6,
-        "OCCUPATION_TYPE": 2,
-        "MONTHS_IN_THE_JOB": 3.0,
-    }
-
-def get_martina_profile():
-    """Perfil de bajo riesgo - debería ser aprobado"""
-    return {
-        "PAYMENT_DAY": 5,
-        "APPLICATION_SUBMISSION_TYPE": "Web",
-        "SEX": "F",
-        "AGE": 38,
-        "QUANT_DEPENDANTS": 1,
-        "PERSONAL_MONTHLY_INCOME": 3500.0,
-        "FLAG_RESIDENCIAL_PHONE": "Y",
-        "COMPANY": "Y",
-        "FLAG_PROFESSIONAL_PHONE": "Y",
-        "MARITAL_STATUS": 2,
-        "STATE_OF_BIRTH": "SP",
-        "CITY_OF_BIRTH": "Sao Paulo",
-        "NACIONALITY": 1,
-        "OTHER_INCOMES": 500.0,
-        "PERSONAL_ASSETS_VALUE": 45000.0,
-        "QUANT_BANKING_ACCOUNTS": 2,
-        "QUANT_SPECIAL_BANKING_ACCOUNTS": 1,
-        "QUANT_CARS": 2,
-        "FLAG_VISA": 1,
-        "FLAG_MASTERCARD": 1,
-        "FLAG_DINERS": 0,
-        "FLAG_AMERICAN_EXPRESS": 1,
-        "FLAG_OTHER_CARDS": 0,
-        "FLAG_EMAIL": 1,
-        "RESIDENCIAL_STATE": "SP",
-        "RESIDENCIAL_CITY": "Sao Paulo",
-        "RESIDENCIAL_PHONE_AREA_CODE": "11",
-        "RESIDENCE_TYPE": 1,
-        "MONTHS_IN_RESIDENCE": 48.0,
-        "POSTAL_ADDRESS_TYPE": 1,
-        "PROFESSIONAL_STATE": "SP",
-        "PROFESSIONAL_PHONE_AREA_CODE": "11",
-        "MONTHS_IN_THE_JOB": 48.0,
-        "PROFESSION_CODE": 1,
-        "OCCUPATION_TYPE": 1,
-        "MATE_PROFESSION_CODE": 1,
-        "MATE_EDUCATION_LEVEL": 4,
-        "PRODUCT": 2,
-    }
 
 # Función para enviar predicción y mostrar resultados
 def send_prediction_and_display(payload, profile_name=None):
@@ -729,8 +670,7 @@ def send_prediction_and_display(payload, profile_name=None):
                     }
                     confidence_display = confidence_labels.get(confidence, confidence)
                     
-                    st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, {status_bg} 0%, rgba(138, 43, 226, 0.1) 100%);
+                    st.markdown(f"""<div style="background: linear-gradient(135deg, {status_bg} 0%, rgba(138, 43, 226, 0.1) 100%);
                                 border-left: 4px solid {status_color};
                                 border-radius: 20px;
                                 padding: 2rem;
@@ -744,11 +684,9 @@ def send_prediction_and_display(payload, profile_name=None):
                             <h3 style="color: {status_color}; margin: 0; font-size: 1.8rem; font-weight: 700;">{status_text}</h3>
                         </div>
                         <p style="color: #B0B0B0; margin: 0; font-size: 0.95rem;">{status_desc}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
                     
-                    st.markdown(f"""
-                    <div style="background: rgba(15, 52, 96, 0.3);
+                    st.markdown(f"""<div style="background: rgba(15, 52, 96, 0.3);
                                 border-radius: 20px;
                                 padding: 2rem;
                                 text-align: center;
@@ -759,11 +697,9 @@ def send_prediction_and_display(payload, profile_name=None):
                                 justify-content: center;">
                         <p style="color: #B0B0B0; margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 500;">Confidence</p>
                         <p style="color: #FFFFFF; margin: 0; font-size: 2.2rem; font-weight: 700;">{confidence_display}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>""", unsafe_allow_html=True)
                 
                 # Mini message section (below top section)
-                st.markdown("<br>", unsafe_allow_html=True)
                 if probability >= 0.7:
                     risk_level = "HIGH RISK"
                     risk_color = "#FFC800"
@@ -1055,12 +991,23 @@ with st.form("credit_risk_form"):
     
     with col6:
         st.markdown("**Credit Cards**")
-        flag_visa = st.checkbox("Visa", key="visa")
-        flag_mastercard = st.checkbox("Mastercard", key="mastercard")
-        flag_diners = st.checkbox("Diners", key="diners")
-        flag_amex = st.checkbox("American Express", key="amex")
-        flag_other_cards = st.checkbox("Other Cards", key="other_cards")
-        flag_email = st.checkbox("Has Email", key="email")
+        # Primera fila: 3 checkboxes
+        cc_col1, cc_col2, cc_col3 = st.columns(3)
+        with cc_col1:
+            flag_visa = st.checkbox("Visa", key="visa")
+        with cc_col2:
+            flag_mastercard = st.checkbox("Mastercard", key="mastercard")
+        with cc_col3:
+            flag_diners = st.checkbox("Diners", key="diners")
+        
+        # Segunda fila: 3 checkboxes
+        cc_col4, cc_col5, cc_col6 = st.columns(3)
+        with cc_col4:
+            flag_amex = st.checkbox("American Express", key="amex")
+        with cc_col5:
+            flag_other_cards = st.checkbox("Other Cards", key="other_cards")
+        with cc_col6:
+            flag_email = st.checkbox("Has Email", key="email")
     
     # ========== SECTION 3: RESIDENCE INFORMATION ==========
     st.markdown("""
@@ -1073,6 +1020,7 @@ with st.form("credit_risk_form"):
     
     col7, col8, col9 = st.columns(3)
     
+    # Columna 1: Información geográfica básica
     with col7:
         # Estado de residencia - selectbox con opciones reales
         res_state_options = UI_OPTIONS.get("RESIDENCIAL_STATE", [])
@@ -1106,7 +1054,9 @@ with st.form("credit_risk_form"):
             key="res_borough"
         )
         residencial_borough = None if residencial_borough == "" else residencial_borough
-        
+    
+    # Columna 2: Información de contacto y código postal
+    with col8:
         # Código de área teléfono residencial - selectbox (alta cardinalidad: 102 categorías)
         # Usa Frequency Encoding, valores desconocidos se manejan automáticamente
         res_phone_area_options = UI_OPTIONS.get("RESIDENCIAL_PHONE_AREA_CODE", [])
@@ -1139,15 +1089,16 @@ with st.form("credit_risk_form"):
                 key="res_zip"
             )
             residencial_zip_3 = None if residencial_zip_3 == "" else residencial_zip_3
-    
-    with col8:
+        
         flag_residential_phone = st.selectbox(
             "Residential Phone *",
             options=["Y", "N"],
             help="Has residential phone?",
             key="residential_phone"
         )
-        
+    
+    # Columna 3: Tipo de residencia y tiempo
+    with col9:
         residence_type = st.selectbox(
             "Residence Type",
             options=["", "1 - Owned", "2 - Rented", "3 - Loaned", "4 - With Family", "5 - Other"],
@@ -1336,121 +1287,144 @@ with st.form("credit_risk_form"):
         )
         education_level_1 = education_level_options[education_level_selection]
     
-    # Submit buttons con estilo mejorado
+    # Submit button
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
-    col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 1])
-    with col_btn1:
-        submitted = st.form_submit_button("Evaluate Credit Risk", type="primary", use_container_width=True)
-    with col_btn2:
-        martin_clicked = st.form_submit_button("Martin (High Risk)", type="secondary", use_container_width=True)
-    with col_btn3:
-        martina_clicked = st.form_submit_button("Martina (Low Risk)", type="secondary", use_container_width=True)
+    submitted = st.form_submit_button("Evaluate Credit Risk", type="primary", use_container_width=True)
     
-    # Verificar qué botón fue presionado
-    use_martin = martin_clicked
-    use_martina = martina_clicked
-    
-    if submitted or use_martin or use_martina:
-        # Si se usó un perfil predefinido, usar ese payload directamente
-        if use_martin:
-            payload = get_martin_profile()
-        elif use_martina:
-            payload = get_martina_profile()
-        else:
-            # Preparar payload con TODAS las features del formulario
-            payload = {
-                # Requeridas
-                "PAYMENT_DAY": payment_day,
-                "APPLICATION_SUBMISSION_TYPE": application_type,
-                "SEX": sex,
-                "AGE": age,
-                "QUANT_DEPENDANTS": quant_dependants,
-                "PERSONAL_MONTHLY_INCOME": float(personal_income),
-                "FLAG_RESIDENCIAL_PHONE": flag_residential_phone,
-                "COMPANY": company,
-                "FLAG_PROFESSIONAL_PHONE": flag_professional_phone,
-            }
-            
-            # Opcionales - Información personal
-            if marital_status and marital_status != "":
-                marital_num = marital_status.split(" -")[0] if " -" in marital_status else marital_status
-                payload["MARITAL_STATUS"] = int(marital_num)
-            if state_of_birth:
-                payload["STATE_OF_BIRTH"] = state_of_birth
-            if city_of_birth:
-                payload["CITY_OF_BIRTH"] = city_of_birth
-            if nacionality is not None:
-                payload["NACIONALITY"] = int(nacionality)
-            
-            # Opcionales - Financieras
-            if other_incomes is not None:
-                payload["OTHER_INCOMES"] = float(other_incomes)
-            if assets_value is not None:
-                payload["PERSONAL_ASSETS_VALUE"] = float(assets_value)
-            if quant_banking_accounts is not None:
-                payload["QUANT_BANKING_ACCOUNTS"] = int(quant_banking_accounts)
-            if quant_special_banking_accounts is not None:
-                payload["QUANT_SPECIAL_BANKING_ACCOUNTS"] = int(quant_special_banking_accounts)
-            if quant_cars is not None:
-                payload["QUANT_CARS"] = int(quant_cars)
-            
-            # Tarjetas
-            payload["FLAG_VISA"] = 1 if flag_visa else 0
-            payload["FLAG_MASTERCARD"] = 1 if flag_mastercard else 0
-            payload["FLAG_DINERS"] = 1 if flag_diners else 0
-            payload["FLAG_AMERICAN_EXPRESS"] = 1 if flag_amex else 0
-            payload["FLAG_OTHER_CARDS"] = 1 if flag_other_cards else 0
-            payload["FLAG_EMAIL"] = 1 if flag_email else 0
-            
-            # Opcionales - Residencia
-            if residencial_state:
-                payload["RESIDENCIAL_STATE"] = residencial_state
-            if residencial_city:
-                payload["RESIDENCIAL_CITY"] = residencial_city
-            if residencial_borough:
-                payload["RESIDENCIAL_BOROUGH"] = residencial_borough
-            if residencial_phone_area_code:
-                payload["RESIDENCIAL_PHONE_AREA_CODE"] = residencial_phone_area_code
-            if residencial_zip_3:
-                payload["RESIDENCIAL_ZIP_3"] = residencial_zip_3
-            if residence_type and residence_type != "":
-                residence_num = residence_type.split(" -")[0] if " -" in residence_type else residence_type
-                payload["RESIDENCE_TYPE"] = int(residence_num)
-            if months_in_residence is not None:
-                payload["MONTHS_IN_RESIDENCE"] = float(months_in_residence)
-            if postal_address_type is not None:
-                payload["POSTAL_ADDRESS_TYPE"] = int(postal_address_type)
-            
-            # Opcionales - Empleo
-            if professional_state:
-                payload["PROFESSIONAL_STATE"] = professional_state
-            # NOTA: PROFESSIONAL_CITY y PROFESSIONAL_BOROUGH fueron removidas del preprocessing
-            if professional_phone_area_code:
-                payload["PROFESSIONAL_PHONE_AREA_CODE"] = professional_phone_area_code
-            if professional_zip_3:
-                payload["PROFESSIONAL_ZIP_3"] = professional_zip_3
-            if months_in_job is not None:
-                payload["MONTHS_IN_THE_JOB"] = float(months_in_job)
-            if profession_code is not None:
-                payload["PROFESSION_CODE"] = int(profession_code)
-            if occupation_type and occupation_type != "":
-                occupation_num = occupation_type.split(" -")[0] if " -" in occupation_type else occupation_type
-                payload["OCCUPATION_TYPE"] = int(occupation_num)
-            if mate_profession_code is not None:
-                payload["MATE_PROFESSION_CODE"] = int(mate_profession_code)
-            if education_level_1 is not None:
-                payload["MATE_EDUCATION_LEVEL"] = int(education_level_1)
-            if product is not None:
-                payload["PRODUCT"] = int(product)
+    if submitted:
+        # Preparar payload con TODAS las features del formulario
+        payload = {
+            # Requeridas
+            "PAYMENT_DAY": payment_day,
+            "APPLICATION_SUBMISSION_TYPE": application_type,
+            "SEX": sex,
+            "AGE": age,
+            "QUANT_DEPENDANTS": quant_dependants,
+            "PERSONAL_MONTHLY_INCOME": float(personal_income),
+            "FLAG_RESIDENCIAL_PHONE": flag_residential_phone,
+            "COMPANY": company,
+            "FLAG_PROFESSIONAL_PHONE": flag_professional_phone,
+        }
+        
+        # Opcionales - Información personal
+        if marital_status and marital_status != "":
+            marital_num = marital_status.split(" -")[0] if " -" in marital_status else marital_status
+            payload["MARITAL_STATUS"] = int(marital_num)
+        if state_of_birth:
+            payload["STATE_OF_BIRTH"] = state_of_birth
+        if city_of_birth:
+            payload["CITY_OF_BIRTH"] = city_of_birth
+        if nacionality is not None:
+            payload["NACIONALITY"] = int(nacionality)
+        
+        # Opcionales - Financieras
+        if other_incomes is not None:
+            payload["OTHER_INCOMES"] = float(other_incomes)
+        if assets_value is not None:
+            payload["PERSONAL_ASSETS_VALUE"] = float(assets_value)
+        if quant_banking_accounts is not None:
+            payload["QUANT_BANKING_ACCOUNTS"] = int(quant_banking_accounts)
+        if quant_special_banking_accounts is not None:
+            payload["QUANT_SPECIAL_BANKING_ACCOUNTS"] = int(quant_special_banking_accounts)
+        if quant_cars is not None:
+            payload["QUANT_CARS"] = int(quant_cars)
+        
+        # Tarjetas
+        payload["FLAG_VISA"] = 1 if flag_visa else 0
+        payload["FLAG_MASTERCARD"] = 1 if flag_mastercard else 0
+        payload["FLAG_DINERS"] = 1 if flag_diners else 0
+        payload["FLAG_AMERICAN_EXPRESS"] = 1 if flag_amex else 0
+        payload["FLAG_OTHER_CARDS"] = 1 if flag_other_cards else 0
+        payload["FLAG_EMAIL"] = 1 if flag_email else 0
+        
+        # Opcionales - Residencia
+        if residencial_state:
+            payload["RESIDENCIAL_STATE"] = residencial_state
+        if residencial_city:
+            payload["RESIDENCIAL_CITY"] = residencial_city
+        if residencial_borough:
+            payload["RESIDENCIAL_BOROUGH"] = residencial_borough
+        if residencial_phone_area_code:
+            payload["RESIDENCIAL_PHONE_AREA_CODE"] = residencial_phone_area_code
+        if residencial_zip_3:
+            payload["RESIDENCIAL_ZIP_3"] = residencial_zip_3
+        if residence_type and residence_type != "":
+            residence_num = residence_type.split(" -")[0] if " -" in residence_type else residence_type
+            payload["RESIDENCE_TYPE"] = int(residence_num)
+        if months_in_residence is not None:
+            payload["MONTHS_IN_RESIDENCE"] = float(months_in_residence)
+        if postal_address_type is not None:
+            payload["POSTAL_ADDRESS_TYPE"] = int(postal_address_type)
+        
+        # Opcionales - Empleo
+        if professional_state:
+            payload["PROFESSIONAL_STATE"] = professional_state
+        # NOTA: PROFESSIONAL_CITY y PROFESSIONAL_BOROUGH fueron removidas del preprocessing
+        if professional_phone_area_code:
+            payload["PROFESSIONAL_PHONE_AREA_CODE"] = professional_phone_area_code
+        if professional_zip_3:
+            payload["PROFESSIONAL_ZIP_3"] = professional_zip_3
+        if months_in_job is not None:
+            payload["MONTHS_IN_THE_JOB"] = float(months_in_job)
+        if profession_code is not None:
+            payload["PROFESSION_CODE"] = int(profession_code)
+        if occupation_type and occupation_type != "":
+            occupation_num = occupation_type.split(" -")[0] if " -" in occupation_type else occupation_type
+            payload["OCCUPATION_TYPE"] = int(occupation_num)
+        if mate_profession_code is not None:
+            payload["MATE_PROFESSION_CODE"] = int(mate_profession_code)
+        if education_level_1 is not None:
+            payload["MATE_EDUCATION_LEVEL"] = int(education_level_1)
+        if product is not None:
+            payload["PRODUCT"] = int(product)
         
         # Enviar request usando la función helper
-        profile_name = None
-        if use_martin:
-            profile_name = "Martin (High Risk)"
-        elif use_martina:
-            profile_name = "Martina (Low Risk)"
-        
-        send_prediction_and_display(payload, profile_name)
+        send_prediction_and_display(payload, None)
+
+# ========== SECTION: PRE-LOAD PROFILES ==========
+st.markdown("""
+<div style="background: rgba(22, 21, 38, 0.8);
+            border-radius: 24px;
+            padding: 2rem;
+            border: 1px solid rgba(138, 43, 226, 0.4);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(138, 43, 226, 0.2);
+            backdrop-filter: blur(15px);
+            margin: 2rem 0 1rem 0;">
+    <h3 style="color: #FFFFFF; font-weight: 600; font-size: 1.3rem; margin: 0 0 1.5rem 0; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(138, 43, 226, 0.2);">
+        PRE-LOAD PROFILES
+    </h3>
+""", unsafe_allow_html=True)
+
+# Botones de perfiles
+col_prof1, col_prof2, col_prof3 = st.columns(3)
+
+profile_selected = None
+profile_payload = None
+
+with col_prof1:
+    if st.button("Martin (High Risk)", type="secondary", use_container_width=True, key="btn_profile_martin"):
+        profile_data = get_profile_data("martin")
+        if profile_data:
+            profile_selected = PROFILES["martin"]["name"]
+            profile_payload = profile_data
+
+with col_prof2:
+    if st.button("Gonzalo (Medium Risk)", type="secondary", use_container_width=True, key="btn_profile_gonzalo"):
+        profile_data = get_profile_data("gonzalo")
+        if profile_data:
+            profile_selected = PROFILES["gonzalo"]["name"]
+            profile_payload = profile_data
+
+with col_prof3:
+    if st.button("Martina (Low Risk)", type="secondary", use_container_width=True, key="btn_profile_martina"):
+        profile_data = get_profile_data("martina")
+        if profile_data:
+            profile_selected = PROFILES["martina"]["name"]
+            profile_payload = profile_data
+
+# Manejar la selección del perfil fuera del contenedor
+if profile_selected and profile_payload:
+    send_prediction_and_display(profile_payload, profile_selected)
 
 # Footer con estilo mejorado
 st.markdown(f"""
