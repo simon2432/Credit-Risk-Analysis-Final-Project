@@ -4,13 +4,18 @@ from src.data_utils import get_datasets
 from src.modeling.pipelines import get_podium
 from src.modeling.train_eval import evaluate_podium_cv, pick_best_model, fit_and_save_final
 
+import os
+
+model_version = os.getenv("MODEL_VERSION", "production")
+out_dir = f"models/{model_version}"
+
 def main():
     print("[train_final] starting...")
 
     train_df, _, _ = get_datasets()
     print("[train_final] dataset loaded:", train_df.shape)
 
-    y = train_df["TARGET_LABEL_BAD=1"]
+    y = train_df["TARGET_LABEL_BAD=1"].astype(int)
     X = train_df.drop(columns=["TARGET_LABEL_BAD=1"])
     print("[train_final] X, y ready:", X.shape, y.shape)
 
@@ -21,11 +26,11 @@ def main():
 
     podium = get_podium()
 
-    cv_metrics = evaluate_podium_cv(podium, X, y, save_path="artifacts/metrics_cv.json")
+    cv_metrics = evaluate_podium_cv(podium, X, y, save_path=f"{out_dir}/metrics_cv.json")
     best = pick_best_model(cv_metrics)
     print("[train_final] best model:", best)
 
-    artifacts, val_metrics = fit_and_save_final(
+    models, val_metrics = fit_and_save_final(
         podium=podium,
         model_name=best,
         X_train=X_train,
@@ -33,10 +38,12 @@ def main():
         X_val=X_val,
         y_val=y_val,
         threshold_objective="f1",
-        artifacts_dir="artifacts",
+        artifacts_dir=out_dir,
+        model_filename="model.joblib",
+        val_metrics_filename="val_metrics.json",
     )
 
-    print("Saved model to:", artifacts.model_path)
+    print("Saved model to:", models.model_path)
     print("Validation metrics:", val_metrics)
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import HistGradientBoostingClassifier
 
-from src.preprocessingnew import build_preprocessing_pipeline
+from src.preprocessing import build_preprocessing_pipeline
 
 POS_WEIGHT = 0.7392 / 0.2600   # ~2.83
 

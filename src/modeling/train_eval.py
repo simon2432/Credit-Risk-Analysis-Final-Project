@@ -139,7 +139,7 @@ def evaluate_podium_cv(
         seed: int = 42,
         scoring: Optional[Dict[str, str]] = None,
         n_jobs: int = -1,
-        save_path: Optional[str] = "artifacts/metrics_cv.json",
+        save_path: Optional[str] = None,
 ) -> Dict[str, Dict[str, float]]:
     """
     Compare models fairly via stratified CV and return aggregate metrics.
@@ -259,7 +259,7 @@ def fit_and_save_final(
       (artifacts_metadata, metrics_dict)
     """
     if model_name not in podium:
-        raise KeyError(f"Unknown model_name={model_name}.Available: {list(podium.key())}")
+        raise KeyError(f"Unknown model_name={model_name}.Available: {list(podium.keys())}")
 
     _ensure_dir(artifacts_dir)
 
@@ -304,7 +304,7 @@ def fit_and_save_final(
         "threshold": float(threshold),
         "model_name": model_name,
         "created_at_utc": created_at,
-        "sklean_version": sklearn.__version__,
+        "sklearn_version": sklearn.__version__,
     }
 
     model_path = str(Path(artifacts_dir) / model_filename)
