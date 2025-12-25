@@ -16,7 +16,7 @@ from sklearn.metrics import (
     precision_recall_curve,
     roc_auc_score,
 )
-from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.model_selection import StratifiedKFold, cross_validate, RandomizedSearchCV, StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 
 # -----------------------------
@@ -368,3 +368,117 @@ def run_full_workflow(
 def save_metrics(metrics: dict, path="artifacts/metrics.json"):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+
+def tune_pipeline_random(
+        pipe,
+        X,
+        y,
+        param_distributions,
+        *,
+        n_iter: int = 25,
+        seed: int = 42,
+        n_splits: int = 5,
+        n_jobs: int = -1,
+        refit_metric: str = "pr_auc",
+):
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+
+    scoring = {
+        "roc_auc": "roc_auc",
+        "pr_auc": "average_precision",  # PR-AUC
+    }
+
+    search = RandomizedSearchCV(
+        estimator=pipe,
+        param_distributions=param_distributions,
+        n_iter=n_iter,
+        scoring=scoring,
+        refit=refit_metric,   # We choose the best by PR-AUC
+        cv=cv,
+        n_jobs=n_jobs,
+        random_state=seed,
+        verbose=1,
+        return_train_score=True,
+        error_score="raise",    # For those cases when a model fails
+    )
+    search.fit(X, y)
+    return search
+
+def save_search_results(search, out_dir: str, prefix: str):
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    # Best params
+    (out / f"{prefix}_best_params.json").write_text(
+        json.dumps(search.best_params_, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    # Full cv results
+    df = pd.DataFrame(search.cv_results_)
+    df.sort_values("mean_test_pr_auc", ascending=False, inplace=True)
+    df.to_csv(out / f"{prefix}_cv_results.csv", index=False)
+
+    # small summary
+    summary = {
+        "best_score_pr_auc": float(search.best_score_),
+        "best_param": search.best_params_,
+    }
+    (out / f"{prefix}_summary.json").write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+    def tune_pipeline_random(
+        pipe,
+        X, 
+        y,
+        param_distributions,
+        *,
+        n_iter=25,
+        seed=42,
+        n_splits=5,
+        n_jobs=-1,
+        refit_metric="pr_auc",
+):
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        scoring = {"roc_auc": "roc_auc", "pr_auc": "average_precision"}
+
+        search = RandomizedSearchCV(
+            estimator=pipe,
+            param_distributions=param_distributions,
+            n_iter=n_iter,
+            scoring=scoring,
+            refit=refit_metric,
+            cv=cv,
+            n_jobs=n_jobs,
+            random_state=seed,
+            verbose=1,
+            return_train_score=True,
+            error_score="raise",
+        )
+        search.fit(X, y)
+        return search
+    
+def save_search_results(search, out_dir: str, prefix: str):
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    # best params
+    (out / f"{prefix}_best_params.json").write_text(
+        json.dumps(search.best_params_, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    # cv results
+    df = pd.DataFrame(search.cv_results_)
+    if "mean_test_pr_auc" in df.columns:
+        df = df.sort_values("mean_test_pr_auc", ascending=False)
+    df.to_csv(out / f"{prefix}_cv_results.csv", index=False)
+
+    # summary
+    summary = {
+        "best_score_pr_auc": float(search.best_score_),
+        "best_params": search.best_params_,
+    }
+    (out / f"{prefix}_summary.json").write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
