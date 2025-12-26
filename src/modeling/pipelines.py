@@ -3,11 +3,21 @@ from __future__ import annotations
 import numpy as np
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingClassifier, HistGradientBoostingClassifier
 
 from src.preprocessing import build_preprocessing_pipeline
 
 POS_WEIGHT = 0.7392 / 0.2600   # ~2.83
+
+try:
+    from xgboost import XGBClassifier
+except ImportError:
+    XGBClassifier = None
+
+try:
+    from lightgbm import LGBMClassifier
+except ImportError:
+    LGBMClassifier = None
 
 def make_logreg_pipeline():
     return Pipeline([
@@ -28,6 +38,65 @@ def make_hgb_pipeline():
         ))
     ])
 
+def make_gb_pipeline():
+    return Pipeline([
+        ("prep", build_preprocessing_pipeline()),
+        ("model", GradientBoostingClassifier(
+            n_estimators=800,
+            max_depth=3,
+            learning_rate=0.015,
+            random_state=42,
+            subsample=0.65,
+            min_samples_split=40,
+            min_samples_leaf=20,
+            max_features="sqrt",
+        )),
+    ])
+
+def make_xgb_pipeline():
+    if XGBClassifier is None:
+        raise ImportError("xgboost is not installed")
+    return Pipeline([
+        ("prep", build_preprocessing_pipeline()),
+        ("model", XGBClassifier(
+            n_estimators=500,
+            max_depth=3,
+            learning_rate=0.025,
+            subsample=0.75,
+            colsample_bytree=0.75,
+            min_child_weight=5,
+            gamma=0.2,
+            reg_alpha=0.2,
+            reg_lambda=1.5,
+            random_state=42,
+            n_jobs=-1,
+            tree_method="hist",
+            eval_metric="logloss",
+        )),
+    ])
+
+def make_lgbm_pipeline():
+    if LGBMClassifier is None:
+        raise ImportError("lightgbm is not installed")
+    return Pipeline([
+        ("prep", build_preprocessing_pipeline()),
+        ("model", LGBMClassifier(
+            n_estimators=600,
+            max_depth=4,
+            learning_rate=0.02,
+            num_leaves=15,
+            subsample=0.7,
+            colsample_bytree=0.7,
+            min_child_samples=30,
+            reg_alpha=0.3,
+            reg_lambda=2.0,
+            random_state=42,
+            n_jobs=-1,
+            verbose=-1,
+            force_col_wise=True,
+        )),
+    ])
+
 def make_catboost_pipeline():
     # CatBoost is external, optional import 
     from catboost import CatBoostClassifier
@@ -43,11 +112,19 @@ def make_catboost_pipeline():
     ])
 
 def get_podium():
-    return{
+    podium = {
         "logreg_balanced": make_logreg_pipeline(),
         "hgb_balanced": make_hgb_pipeline(),
+        "gb_sample_weight": make_gb_pipeline(),
         "catboost_pos_weight": make_catboost_pipeline(),
+        "xgboost_sample_weight": make_xgb_pipeline(),
+        "lightgbm_sample_weight": make_lgbm_pipeline(),
     }
+        # if XGBClassifier is not None:
+        #     podium["xgboost_sample_weight"] = make_xgb_pipeline()
+        # if LGBMClassifier is not None:
+        #     podium["lightgbm_sample_weight"] = make_lgbm_pipeline()
+    return podium
 
 def get_tuning_candidates():
     """

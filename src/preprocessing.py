@@ -278,16 +278,23 @@ def build_preprocessing_pipeline(cfg: Optional[PreprocessConfig] = None) -> Pipe
         ]
     )
 
+    try:
+        ohe = OneHotEncoder(
+            handle_unknown="infrequent_if_exist",
+            min_frequency=cfg.ohe_min_frequency,
+            sparse_output=False,
+        )
+    except TypeError:  # older sklearn
+        ohe = OneHotEncoder(
+            handle_unknown="infrequent_if_exist",
+            min_frequency=cfg.ohe_min_frequency,
+            sparse=False,
+        )
+
     categorical_pipe = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="most_frequent")),
-            (
-                "ohe",
-                OneHotEncoder(
-                    handle_unknown="infrequent_if_exist",
-                    min_frequency=cfg.ohe_min_frequency,
-                ),
-            ),
+            ("ohe", ohe),
         ]
     )
 

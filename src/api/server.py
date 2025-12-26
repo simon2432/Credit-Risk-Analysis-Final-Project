@@ -14,7 +14,6 @@ import os
 
 # Cargar modelo y pipeline al iniciar
 from src.config import MODEL_FILE, PREPROCESSOR_FILE, MODEL_DIR
-from src.preprocessing import PreprocessingPipeline
 from src.api.feature_mapper import create_full_feature_dict
 
 app = FastAPI(title="Credit Risk Analysis API", version="1.0.0")
@@ -28,34 +27,32 @@ def load_model_and_preprocessor():
     """Carga el modelo, pipeline y threshold óptimo."""
     global model, preprocessor, optimal_threshold
     try:
-        model = joblib.load(MODEL_FILE)
-        preprocessor = PreprocessingPipeline.load()
+        loaded = joblib.load(MODEL_FILE)
+        if isinstance(loaded, dict) and "pipeline" in loaded:
+            model = loaded["pipeline"]
+            preprocessor = None
+            if "threshold" in loaded:
+                optimal_threshold = float(loaded["threshold"])
+                print(f"[OK] Optimal threshold loaded from bundle: {optimal_threshold:.4f}")
+        else:
+            model = loaded
+            preprocessor = joblib.load(PREPROCESSOR_FILE) if os.path.exists(PREPROCESSOR_FILE) else None
         
         # Intentar cargar threshold óptimo
-        threshold_path = MODEL_DIR / "optimal_threshold.txt"
-        if threshold_path.exists():
-            with open(threshold_path, "r") as f:
-                optimal_threshold = float(f.read().strip())
-            print(f"[OK] Optimal threshold loaded: {optimal_threshold:.4f}")
-        else:
-            print(f"[WARNING] Optimal threshold file not found, using default: {optimal_threshold}")
+        if optimal_threshold == 0.5:
+            threshold_path = MODEL_DIR / "optimal_threshold.txt"
+            if threshold_path.exists():
+                with open(threshold_path, "r") as f:
+                    optimal_threshold = float(f.read().strip())
+                print(f"[OK] Optimal threshold loaded: {optimal_threshold:.4f}")
+            else:
+                print(f"[WARNING] Optimal threshold file not found, using default: {optimal_threshold}")
         
         print(f"[OK] Model loaded from: {MODEL_FILE}")
-        print(f"[OK] Preprocessor loaded from: {PREPROCESSOR_FILE}")
-        print(f"[DEBUG] PREPROCESSOR_FILE path: {PREPROCESSOR_FILE}")
-        print(f"[DEBUG] File exists: {os.path.exists(PREPROCESSOR_FILE)}")
-        
-        # Verificar que el preprocessor tenga los métodos de protección
-        if hasattr(preprocessor, '__setstate__'):
-            print("[OK] Preprocessor has __setstate__ method")
-        if hasattr(preprocessor, '__getattribute__'):
-            print("[OK] Preprocessor has __getattribute__ method")
-        
-        # Verificar atributos obsoletos
-        if hasattr(preprocessor, 'outlier_limits'):
-            print(f"[INFO] outlier_limits exists, type: {type(getattr(preprocessor, 'outlier_limits', None))}")
-        else:
-            print("[WARNING] outlier_limits does not exist (may cause issues)")
+        print(
+            "[OK] Preprocessor loaded from: "
+            f"{PREPROCESSOR_FILE if preprocessor is not None else 'embedded in pipeline'}"
+        )
         return True
     except Exception as e:
         print(f"[ERROR] Error loading model/preprocessor: {str(e)}")
@@ -72,7 +69,7 @@ async def startup_event():
     success = load_model_and_preprocessor()
     if not success:
         print("⚠️  API started but model/preprocessor could not be loaded!")
-        print("   Make sure you have trained the model first by running: python -m src.train_model")
+        print("   Make sure you have trained the model first by running: python -m src.modeling.train_eval")
 
 # Esquema completo - Acepta TODAS las 44 features (sin las 9 constantes)
 # Las 9 columnas constantes NO se piden (se rellenan automáticamente)
@@ -182,15 +179,15 @@ def health_check():
 @app.get("/model_info")
 def model_info():
     """Información sobre el modelo cargado."""
-    if model is None or preprocessor is None:
-        raise HTTPException(status_code=503, detail="Model or preprocessor not loaded")
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
     
     return {
         "model_type": type(model).__name__,
-        "preprocessor_type": type(preprocessor).__name__,
+        "preprocessor_type": type(preprocessor).__name__ if preprocessor is not None else "embedded_in_pipeline",
         "model_file": MODEL_FILE,
-        "preprocessor_file": PREPROCESSOR_FILE,
-        "status": "ready"
+        "preprocessor_file": PREPROCESSOR_FILE if preprocessor is not None else "embedded",
+        "status": "ready",
     }
 
 
@@ -202,10 +199,10 @@ def predict(data: PredictRequest):
     Recibe features esenciales y automáticamente rellena las constantes y opcionales
     para crear el dataset completo necesario para el preprocessing.
     """
-    if model is None or preprocessor is None:
+    if model is None:
         raise HTTPException(
             status_code=503,
-            detail="Model or preprocessor not loaded. Please train the model first."
+            detail="Model not loaded. Please train the model first."
         )
     
     try:
@@ -217,10 +214,8 @@ def predict(data: PredictRequest):
         input_df = pd.DataFrame([full_input_dict])
         
         # Aplicar preprocessing usando el pipeline guardado
-        processed_data = preprocessor.transform(input_df)
-        
-        # Verificar que los datos procesados no tengan NaN o Inf
-        if np.isnan(processed_data).any() or np.isinf(processed_data).any():
+        processed_data = preprocessor.transform(input_df) if preprocessor is not None else input_df
+        if preprocessor is not None and (np.isnan(processed_data).any() or np.isinf(processed_data).any()):
             print(f"⚠️  WARNING: NaN or Inf values in processed data!")
             print(f"   NaN count: {np.isnan(processed_data).sum()}")
             print(f"   Inf count: {np.isinf(processed_data).sum()}")
@@ -229,7 +224,7 @@ def predict(data: PredictRequest):
         probability = model.predict_proba(processed_data)[0, 1]  # Probabilidad de default (BAD=1)
         
         # DEBUG: Log información importante
-        print(f"📊 Prediction Debug:")
+        print("[DEBUG] Prediction Debug:")
         print(f"   Input features provided: {len(simplified_input)}")
         print(f"   Full features after mapping: {len(full_input_dict)}")
         print(f"   Processed features shape: {processed_data.shape}")
@@ -272,3 +267,6 @@ def predict(data: PredictRequest):
 
 # uvicorn.run is handled by Docker CMD
 # uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+

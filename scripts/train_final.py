@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 model_version = os.getenv("MODEL_VERSION", "production")
-out_dir = f"models/{model_version}"
+out_dir = Path("models") / model_version
 
 def main():
     tuning_dir = out_dir / "tunig"
@@ -69,7 +69,7 @@ def main():
 
     # 3) Fit final + threshold on validation and save model bundle
     tuned_podium = {best_name: best_pipe}
-    artifacts, val_metrics = fit_and_save_final(
+    artifacts, val_metrics, _ = fit_and_save_final(
         podium=tuned_podium,
         model_name=best_name,
         X_train=X_train,
