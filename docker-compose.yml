@@ -36,6 +36,10 @@ services:
       - ./src/preprocessing.py:/app/src/preprocessing.py
       # Mount para config y otros módulos necesarios
       - ./src/config.py:/app/src/config.py
+      # Mount para models_config (permite cambiar modelos sin reconstruir)
+      - ./src/models_config.py:/app/src/models_config.py
+      # Mount para train_model (por si se necesita ejecutar dentro del contenedor)
+      - ./src/train_model.py:/app/src/train_model.py
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1

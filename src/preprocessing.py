@@ -3,13 +3,13 @@ Pipeline completo de preprocessing para Credit Risk Analysis.
 Incluye: limpieza, feature engineering, missing values, encoding y escalado.
 """
 
-from typing import Tuple, List, Optional, Dict
+from typing import Tuple, List, Optional, Dict, Any
 import numpy as np
 import pandas as pd
 import joblib
 from pathlib import Path
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, OrdinalEncoder
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, OneHotEncoder, OrdinalEncoder
 
 from src.config import PREPROCESSOR_FILE
 
@@ -57,14 +57,16 @@ class PreprocessingPipeline:
     Guarda todos los transformadores para aplicar en nuevos datos.
     """
 
-    def __init__(self, low_cardinality_threshold: int = 20):
+    def __init__(self, low_cardinality_threshold: int = 20, scaler_type: str = "minmax"):
         """
         Inicializa el pipeline.
 
         Args:
             low_cardinality_threshold: Umbral para considerar baja cardinalidad (default: 20)
+            scaler_type: Tipo de escalador a usar ("minmax" o "standard", default: "minmax")
         """
         self.low_cardinality_threshold = low_cardinality_threshold
+        self.scaler_type = scaler_type
         self.is_fitted = False
 
         # Almacenar transformadores y configuraciones
@@ -78,16 +80,16 @@ class PreprocessingPipeline:
         self.ohe_cat_columns: List[str] = []
         self.frequency_encoding_columns: List[str] = []  # Columnas con Frequency Encoding
         self.frequency_encoders: Dict[str, Dict[str, float]] = {}  # Mapeo categoría → frecuencia
+        self.feature_names: Optional[List[str]] = None  # Nombres de las columnas finales después del preprocessing
         self.rare_categories_map: Dict[str, List[str]] = {}  # Mapeo de categorías raras para agrupar
         self.feature_engineering_features: List[str] = []
 
         # Transformadores
         self.categorical_imputer: Optional[SimpleImputer] = None
         self.numeric_imputer: Optional[SimpleImputer] = None
-        self.binary_encoder: Optional[OrdinalEncoder] = None
         self.yn_encoder: Optional[OrdinalEncoder] = None  # Encoder especial para columnas Y/N
         self.ohe_encoder: Optional[OneHotEncoder] = None
-        self.scaler: Optional[MinMaxScaler] = None
+        self.scaler: Optional[Any] = None  # Puede ser MinMaxScaler o StandardScaler
 
     def __setstate__(self, state: dict):
         """
@@ -129,8 +131,6 @@ class PreprocessingPipeline:
             # Detectar columnas constantes: sin varianza (todos los valores iguales)
             constant_cols = []
             for col in df.columns:
-                if col == ID_COL:
-                    continue
                 unique_count = df[col].nunique(dropna=True)
                 if unique_count == 0 or unique_count == 1:
                     constant_cols.append(col)
@@ -154,7 +154,7 @@ class PreprocessingPipeline:
         cols_to_remove = []
         if self.constant_columns_removed:
             cols_to_remove.extend([col for col in self.constant_columns_removed if col in df.columns])
-        if hasattr(self, 'high_cardinality_many_missing_removed') and self.high_cardinality_many_missing_removed:
+        if self.high_cardinality_many_missing_removed:
             cols_to_remove.extend([col for col in self.high_cardinality_many_missing_removed if col in df.columns])
         
         if cols_to_remove:
@@ -278,6 +278,36 @@ class PreprocessingPipeline:
             df["AGE_SQUARED"] = df["AGE"] ** 2
 
         # 8. Features de Missing Values: indicadores binarios (se crean en paso 4)
+        
+        # 9. Features de Interacción Avanzadas: combinaciones complejas
+        # Interacción entre edad e ingresos (jóvenes con altos ingresos pueden ser de mayor riesgo)
+        if "AGE" in df.columns and "PERSONAL_MONTHLY_INCOME" in df.columns:
+            df["AGE_X_INCOME"] = df["AGE"] * df["PERSONAL_MONTHLY_INCOME"]
+        
+        # Interacción entre estabilidad y activos (estabilidad + activos = menor riesgo)
+        if "STABILITY_SCORE" in df.columns and "PERSONAL_ASSETS_VALUE" in df.columns:
+            df["STABILITY_X_ASSETS"] = df["STABILITY_SCORE"] * df["PERSONAL_ASSETS_VALUE"]
+        
+        # Interacción entre ingresos totales y dependientes (más dependientes con mismo ingreso = más riesgo)
+        if "TOTAL_MONTHLY_INCOME" in df.columns and "QUANT_DEPENDANTS" in df.columns:
+            df["INCOME_X_DEPENDANTS"] = df["TOTAL_MONTHLY_INCOME"] * df["QUANT_DEPENDANTS"]
+        
+        # Ratio de estabilidad total (años en residencia + trabajo normalizado)
+        if "YEARS_IN_RESIDENCE" in df.columns and "YEARS_IN_JOB" in df.columns:
+            df["TOTAL_STABILITY_YEARS"] = df["YEARS_IN_RESIDENCE"] + df["YEARS_IN_JOB"]
+            # Ratio de estabilidad financiera (estabilidad / dependientes)
+            if "QUANT_DEPENDANTS" in df.columns:
+                df["STABILITY_PER_DEPENDANT"] = df["TOTAL_STABILITY_YEARS"] / (df["QUANT_DEPENDANTS"] + 1)
+        
+        # Interacción entre tarjetas y cuentas bancarias (más productos = más solvencia percibida)
+        if "TOTAL_CARDS" in df.columns and "TOTAL_BANKING_ACCOUNTS" in df.columns:
+            df["CARDS_X_ACCOUNTS"] = df["TOTAL_CARDS"] * df["TOTAL_BANKING_ACCOUNTS"]
+        
+        # Feature de capacidad de pago relativa (ingresos vs activos + dependientes)
+        if "TOTAL_MONTHLY_INCOME" in df.columns and "PERSONAL_ASSETS_VALUE" in df.columns and "QUANT_DEPENDANTS" in df.columns:
+            df["INCOME_TO_ASSETS_DEPENDANTS"] = df["TOTAL_MONTHLY_INCOME"] / (
+                (df["PERSONAL_ASSETS_VALUE"] / 1000) + (df["QUANT_DEPENDANTS"] * 100) + 1
+            )
 
         # Guardar lista de features creadas (para referencia)
         if not self.is_fitted:
@@ -299,6 +329,13 @@ class PreprocessingPipeline:
                 "TOTAL_BANKING_ACCOUNTS",
                 "HAS_SPECIAL_ACCOUNTS",
                 "AGE_SQUARED",
+                "AGE_X_INCOME",
+                "STABILITY_X_ASSETS",
+                "INCOME_X_DEPENDANTS",
+                "TOTAL_STABILITY_YEARS",
+                "STABILITY_PER_DEPENDANT",
+                "CARDS_X_ACCOUNTS",
+                "INCOME_TO_ASSETS_DEPENDANTS",
             ]
 
         return df
@@ -357,20 +394,6 @@ class PreprocessingPipeline:
             # Remover target de numéricas si existe
             if TARGET_COL in self.numeric_columns:
                 self.numeric_columns.remove(TARGET_COL)
-        else:
-            # En transformación, usar las columnas guardadas
-            if hasattr(self, 'binary_cat_columns_for_imputation'):
-                binary_cols = self.binary_cat_columns_for_imputation
-            else:
-                binary_cols = []
-            
-            if hasattr(self, 'high_cardinality_cols_for_imputation'):
-                high_card_cols = self.high_cardinality_cols_for_imputation
-            else:
-                high_card_cols = []
-            
-            cols_to_exclude = yn_cols_in_data + binary_cols + high_card_cols
-
         # Imputar categóricas con moda (valor más frecuente)
         cat_cols_to_impute = [col for col in self.categorical_columns if col in df.columns]
         if cat_cols_to_impute:
@@ -408,7 +431,7 @@ class PreprocessingPipeline:
     def _step5_encoding(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Paso 5: Encoding
-        - Binarias: OrdinalEncoder (preserva NaN)
+        - Binarias: OneHotEncoder (evita orden artificial)
         - Y/N: OrdinalEncoder (preserva NaN)
         - Baja cardinalidad (≤20): OneHotEncoder
         - Media cardinalidad (21-100): Agrupar poco frecuentes + OneHotEncoder
@@ -427,14 +450,8 @@ class PreprocessingPipeline:
         yn_cols_in_data = [col for col in YN_COLUMNS if col in df.columns]
         
         if not self.is_fitted:
-            # Usar binarias identificadas en imputación, o identificarlas aquí
-            if hasattr(self, 'binary_cat_columns_for_imputation') and self.binary_cat_columns_for_imputation:
-                self.binary_cat_columns = [col for col in self.binary_cat_columns_for_imputation if col in df.columns]
-            else:
-                self.binary_cat_columns = [
-                    col for col in cat_cols
-                    if col not in yn_cols_in_data and df[col].nunique(dropna=True) == 2
-                ]
+            # Usar binarias identificadas en imputación (ya están guardadas en self.binary_cat_columns_for_imputation)
+            self.binary_cat_columns = [col for col in self.binary_cat_columns_for_imputation if col in df.columns]
             multi_cat_columns = [
                 col for col in cat_cols
                 if col not in self.binary_cat_columns and col not in yn_cols_in_data
@@ -442,9 +459,9 @@ class PreprocessingPipeline:
 
             # Separar por cardinalidad: baja (OneHot), media (agrupar+OneHot), alta (Frequency)
             low_card_cols = [
-        col for col in multi_cat_columns
+                col for col in multi_cat_columns
                 if df[col].nunique(dropna=True) <= self.low_cardinality_threshold
-    ]
+            ]
             
             medium_card_cols = [
                 col for col in multi_cat_columns
@@ -459,24 +476,12 @@ class PreprocessingPipeline:
             if high_card_cols:
                 print(f"Columnas de alta cardinalidad (>100) usarán Frequency Encoding: {high_card_cols}")
             
-            self.ohe_cat_columns = low_card_cols + medium_card_cols  # Ambas usan OneHot (media después de agrupar)
+            # Incluir binarias en OneHotEncoder (junto con baja y media cardinalidad)
+            self.ohe_cat_columns = self.binary_cat_columns + low_card_cols + medium_card_cols  # Binarias + baja + media cardinalidad usan OneHot
             self.frequency_encoding_columns = high_card_cols
 
-        # Encoding binarias: OrdinalEncoder (NaN → "MISSING" → categoría numérica)
-        if self.binary_cat_columns:
-            binary_cols = [col for col in self.binary_cat_columns if col in df.columns]
-            if binary_cols:
-                binary_df = df[binary_cols].copy().fillna("MISSING")
-                
-                if not self.is_fitted:
-                    self.binary_encoder = OrdinalEncoder(
-                        handle_unknown="use_encoded_value", unknown_value=-1
-                    )
-                    self.binary_encoder.fit(binary_df)
-                
-                encoded_binary = self.binary_encoder.transform(binary_df)
-                for i, col in enumerate(binary_cols):
-                    df[col] = encoded_binary[:, i]
+        # NOTA: Las binarias ahora se codifican con OneHotEncoder junto con las de baja/media cardinalidad
+        # Ya fueron agregadas a self.ohe_cat_columns en el bloque anterior, así que se procesan más abajo
         
         # Encoding Y/N: OrdinalEncoder (Y=0, N=1, MISSING=2)
         if yn_cols_in_data:
@@ -493,11 +498,13 @@ class PreprocessingPipeline:
                 df[col] = encoded_yn[:, i]
 
         # Agrupar categorías poco frecuentes en columnas de media cardinalidad (antes de OneHot)
-        # Identificar columnas de media cardinalidad que necesitan agrupación
+        # Excluir binarias del agrupamiento (solo tienen 2 categorías, no necesitan agrupar)
         if not self.is_fitted:
             medium_card_cols_to_group = [
                 col for col in self.ohe_cat_columns
-                if col in df.columns and self.low_cardinality_threshold < df[col].nunique(dropna=True) <= GROUPING_THRESHOLD
+                if col in df.columns 
+                and col not in self.binary_cat_columns  # Excluir binarias
+                and self.low_cardinality_threshold < df[col].nunique(dropna=True) <= GROUPING_THRESHOLD
             ]
             
             # Guardar mapeo de categorías raras para aplicar en transformación
@@ -563,10 +570,13 @@ class PreprocessingPipeline:
 
     def _step6_scaling(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Paso 6: Escalado con MinMaxScaler
+        Paso 6: Escalado/Normalización
         
-        Normaliza todas las features numéricas al rango [0, 1] para que modelos
-        como Logistic Regression y Neural Networks converjan mejor.
+        Normaliza todas las features numéricas según el tipo de escalador configurado:
+        - "minmax": MinMaxScaler - normaliza al rango [0, 1]
+        - "standard": StandardScaler - normaliza a media 0 y std 1 (z-score)
+        
+        Esto ayuda a que modelos como Logistic Regression y Neural Networks converjan mejor.
         """
         df = df.copy()
 
@@ -577,7 +587,11 @@ class PreprocessingPipeline:
 
         if numeric_cols:
             if not self.is_fitted:
-                self.scaler = MinMaxScaler()
+                # Crear escalador según el tipo configurado
+                if self.scaler_type == "standard":
+                    self.scaler = StandardScaler()
+                else:  # default: "minmax"
+                    self.scaler = MinMaxScaler()
                 self.scaler.fit(df[numeric_cols])
 
             df[numeric_cols] = self.scaler.transform(df[numeric_cols])
@@ -630,6 +644,9 @@ class PreprocessingPipeline:
             test_processed = self._step5_encoding(test_processed)
             test_processed = self._step6_scaling(test_processed)
 
+        # Guardar nombres de columnas finales para uso posterior (ej: DataFrames con nombres)
+        self.feature_names = list(train_processed.columns)
+        
         # Convertir a numpy arrays para entrenamiento del modelo
         train_array = train_processed.values
         val_array = val_processed.values if val_processed is not None else None
@@ -650,9 +667,7 @@ class PreprocessingPipeline:
         if not self.is_fitted:
             raise ValueError("Pipeline must be fitted before calling transform()")
 
-
         # Ejecutar pasos de preprocessing
-        # Los atributos obsoletos ya están manejados por __getattribute__ y __setstate__
         df_processed = self._step1_initial_cleaning(df)
         df_processed = self._step2_handle_outliers(df_processed)
         df_processed = self._step3_feature_engineering(df_processed)
@@ -721,11 +736,22 @@ def preprocess_data(
     val_df: pd.DataFrame,
     test_df: pd.DataFrame,
     low_cardinality_threshold: int = 20,
+    scaler_type: str = "minmax",
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Función de compatibilidad con código existente.
     Crea un pipeline, lo ajusta y transforma los datos.
+    
+    Args:
+        train_df: DataFrame de entrenamiento
+        val_df: DataFrame de validación
+        test_df: DataFrame de test
+        low_cardinality_threshold: Umbral para baja cardinalidad (default: 20)
+        scaler_type: Tipo de escalador ("minmax" o "standard", default: "minmax")
     """
-    pipeline = PreprocessingPipeline(low_cardinality_threshold=low_cardinality_threshold)
+    pipeline = PreprocessingPipeline(
+        low_cardinality_threshold=low_cardinality_threshold,
+        scaler_type=scaler_type
+    )
     train, val, test = pipeline.fit_transform(train_df, val_df, test_df)
     return train, val, test

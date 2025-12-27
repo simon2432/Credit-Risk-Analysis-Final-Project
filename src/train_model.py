@@ -4,9 +4,8 @@ Usa el PreprocessingPipeline y entrena múltiples modelos comparándolos.
 
 Este script:
 - Usa SOLO el dataset de Modeling (PAKDD2010_Modeling_Data.txt)
-- Divide en 70% train, 15% validation, 15% test
-- Entrena y evalúa modelos solo en train y validation
-- Guarda test set en memoria pero NO lo usa (reservado para evaluación final)
+- Divide en 70% train, 30% validation
+- Entrena y evalúa modelos en train y validation
 - Calcula threshold óptimo en VALIDATION para TODOS los modelos
 - Guarda un historial detallado de cada entrenamiento en JSON
 - El archivo de predicción (PAKDD2010_Prediction_Data.txt) NO se usa
@@ -39,6 +38,26 @@ from src.models_config import get_models_config, create_model_instance
 # Configuración
 RANDOM_STATE = 42
 TRAINING_HISTORY_DIR = MODEL_DIR.parent / "training_history"
+
+
+class ProbabilisticEnsemble:
+    """
+    Ensemble que promedia las probabilidades de múltiples modelos.
+    Clase serializable para poder guardarla con joblib.
+    """
+    def __init__(self, models):
+        self.models = models
+        self.is_fitted = True
+    
+    def predict_proba(self, X):
+        """Promediar probabilidades de todos los modelos"""
+        probas = [model.predict_proba(X) for model in self.models]
+        return np.mean(probas, axis=0)
+    
+    def predict(self, X):
+        """Predecir usando probabilidad promedio >= 0.5"""
+        probas = self.predict_proba(X)
+        return (probas[:, 1] >= 0.5).astype(int)
 
 
 def calculate_optimal_threshold(y_true: np.ndarray, y_proba: np.ndarray) -> Dict[str, Any]:
@@ -75,9 +94,9 @@ def calculate_optimal_threshold(y_true: np.ndarray, y_proba: np.ndarray) -> Dict
 
 def evaluate_model_comprehensive(
     model,
-    X_train: np.ndarray,
+    X_train,
     y_train: np.ndarray,
-    X_val: np.ndarray,
+    X_val,
     y_val: np.ndarray,
     model_name: str,
 ) -> Dict[str, Any]:
@@ -133,39 +152,32 @@ def train_models(
     y_train: pd.Series,
     X_val: pd.DataFrame,
     y_val: pd.Series,
-    X_test: pd.DataFrame,
-    y_test: pd.Series,
     pipeline: PreprocessingPipeline,
-) -> Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]], float]:
+) -> Tuple[Any, Dict[str, Any], List[Dict[str, Any]], float]:
     """
     Entrena múltiples modelos y los evalúa en train y validation.
-    El conjunto de test se guarda en memoria pero NO se usa para evaluación
-    (se reserva para evaluación final del modelo seleccionado).
     
     Args:
         X_train: Features de entrenamiento
         y_train: Target de entrenamiento
         X_val: Features de validación
         y_val: Target de validación
-        X_test: Features de test (guardado en memoria, no usado)
-        y_test: Target de test (guardado en memoria, no usado)
         pipeline: Pipeline de preprocessing
     
     Returns:
         Tupla con (mejor modelo, mejores métricas, lista de resultados de todos los modelos)
     """
-    # Aplicar preprocessing (procesamos test también para guardarlo, aunque no lo usemos)
+    # Aplicar preprocessing
     print("\n" + "=" * 60)
     print("APPLYING PREPROCESSING PIPELINE")
     print("=" * 60)
     print(f"Train input: {X_train.shape[0]:,} rows × {X_train.shape[1]} features")
     print(f"Validation input: {X_val.shape[0]:,} rows × {X_val.shape[1]} features")
-    print(f"Test input: {X_test.shape[0]:,} rows × {X_test.shape[1]} features (guardado en memoria, NO usado para evaluación)")
     print(f"\n[INFO] Applying ALL preprocessing steps: cleaning -> outliers -> feature engineering -> encoding -> scaling...")
     
     preprocessing_start = time.time()
-    X_train_processed, X_val_processed, X_test_processed = pipeline.fit_transform(
-        X_train, X_val, X_test
+    X_train_processed, X_val_processed, _ = pipeline.fit_transform(
+        X_train, X_val, None
     )
     preprocessing_time = time.time() - preprocessing_start
     
@@ -173,7 +185,6 @@ def train_models(
     print(f"\nAfter preprocessing:")
     print(f"  Train: {X_train_processed.shape[0]:,} rows × {X_train_processed.shape[1]} features")
     print(f"  Validation: {X_val_processed.shape[0]:,} rows × {X_val_processed.shape[1]} features")
-    print(f"  Test: {X_test_processed.shape[0]:,} rows × {X_test_processed.shape[1]} features (guardado, NO evaluado)")
     
     # Verificar calidad de datos procesados
     print(f"\nData quality check:")
@@ -187,12 +198,18 @@ def train_models(
     else:
         print("  [OK] No NaN or Inf values - data is clean")
 
-    # Convertir targets a numpy (solo train y val se usan para entrenamiento/evaluación)
+    # Convertir arrays a DataFrames con nombres de columnas para evitar warnings de LightGBM
+    # (LightGBM prefiere DataFrames con nombres de columnas en lugar de arrays sin nombres)
+    # Limpiar nombres de columnas: XGBoost no acepta caracteres especiales [, ], <, >
+    feature_names = pipeline.feature_names
+    cleaned_feature_names = [name.replace('[', '_').replace(']', '_').replace('<', '_').replace('>', '_') 
+                             for name in feature_names]
+    X_train_processed = pd.DataFrame(X_train_processed, columns=cleaned_feature_names)
+    X_val_processed = pd.DataFrame(X_val_processed, columns=cleaned_feature_names)
+    
+    # Convertir targets a numpy
     y_train_np = y_train.values
     y_val_np = y_val.values
-    
-    # Test se guarda pero no se usa (se reserva para evaluación final del modelo seleccionado)
-    # No necesitamos procesarlo ni validarlo aquí
     
     # Calcular sample_weight para modelos que lo necesiten
     sample_weights = compute_sample_weight('balanced', y_train_np)
@@ -271,8 +288,55 @@ def train_models(
     if best_model is None:
         raise ValueError("No model was successfully trained")
 
-    # Obtener métricas del mejor modelo
+    # Obtener métricas del mejor modelo individual
     best_metrics = results[best_model_name]["metrics"]
+    
+    # Crear ensemble combinando los modelos ya entrenados (promedio de probabilidades)
+    # Usamos un enfoque simple: promediamos las probabilidades predichas
+    if len(results) >= 2:
+        print("\n" + "=" * 60)
+        print("Evaluating Ensemble (Average of Probabilities)...")
+        print("=" * 60)
+        print(f"  Combining {len(results)} models: {list(results.keys())}")
+        
+        try:
+            # Crear ensemble que promedia probabilidades de todos los modelos
+            ensemble = ProbabilisticEnsemble([results[name]["model"] for name in results.keys()])
+            
+            # Evaluar ensemble
+            ensemble_metrics = evaluate_model_comprehensive(
+                ensemble, X_train_processed, y_train_np, X_val_processed, y_val_np, "Ensemble_AvgProbs"
+            )
+            ensemble_metrics["training_time_seconds"] = 0.0  # No hay tiempo de entrenamiento, solo combinación
+            ensemble_metrics["ensemble_type"] = "Average_of_Probabilities"
+            ensemble_metrics["base_models"] = list(results.keys())
+            
+            all_results.append(ensemble_metrics)
+            
+            # Mostrar métricas del ensemble
+            print(f"  Train ROC-AUC: {ensemble_metrics['train_metrics']['roc_auc']:.4f}")
+            print(f"  Train F1: {ensemble_metrics['train_metrics']['f1']:.4f}")
+            print(f"  Validation ROC-AUC: {ensemble_metrics['val_metrics']['roc_auc']:.4f}")
+            print(f"  Validation F1: {ensemble_metrics['val_metrics']['f1']:.4f}")
+            print(f"  Optimal Threshold (validation): {ensemble_metrics['optimal_threshold_info']['optimal_threshold']:.4f}")
+            print(f"  Validation F1 (optimal threshold): {ensemble_metrics['optimal_threshold_info']['metrics_at_optimal']['f1']:.4f}")
+            
+            # Comparar ensemble con mejor modelo individual
+            if ensemble_metrics['val_metrics']['roc_auc'] > best_metrics['val_metrics']['roc_auc']:
+                print(f"\n  [INFO] Ensemble mejoró sobre mejor modelo individual!")
+                print(f"         Individual: {best_metrics['val_metrics']['roc_auc']:.4f}")
+                print(f"         Ensemble:   {ensemble_metrics['val_metrics']['roc_auc']:.4f}")
+                best_model = ensemble
+                best_model_name = "Ensemble_AvgProbs"
+                best_metrics = ensemble_metrics
+            else:
+                print(f"\n  [INFO] Mejor modelo individual sigue siendo mejor que el ensemble.")
+                
+        except Exception as e:
+            print(f"  [ERROR] Error creating ensemble: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            print("  [INFO] Continuando con mejor modelo individual...")
     
     print("\n" + "=" * 60)
     print(f"Best Model: {best_model_name}")
@@ -280,8 +344,6 @@ def train_models(
     print(f"Validation ROC-AUC: {best_metrics['val_metrics']['roc_auc']:.4f}")
     print(f"Optimal Threshold (validation): {best_metrics['optimal_threshold_info']['optimal_threshold']:.4f}")
     print("=" * 60)
-    print("\n[INFO] Test set guardado en memoria pero NO usado para evaluación.")
-    print("       Se reserva para evaluación final del modelo seleccionado.")
 
     return best_model, best_metrics, all_results, preprocessing_time
 
@@ -365,8 +427,6 @@ def save_model_and_pipeline(
         for metric, value in metrics["optimal_threshold_info"]["metrics_at_optimal"].items():
             f.write(f"  {metric}: {value:.4f}\n")
         f.write(f"\nOptimal Threshold (calculated on validation): {metrics['optimal_threshold_info']['optimal_threshold']:.4f}\n")
-        f.write("\n[NOTE] Test set guardado en memoria pero NO usado para evaluación.\n")
-        f.write("       Se reserva para evaluación final del modelo seleccionado.\n")
     print(f"Metrics saved to: {metrics_path}")
     
     # Guardar threshold óptimo en un archivo separado para la API
@@ -382,18 +442,16 @@ def main():
     
     Estrategia:
     - Usa SOLO el dataset de Modeling (PAKDD2010_Modeling_Data.txt)
-    - Divide en 70% train, 15% validation, 15% test
-    - Evalúa modelos solo en train y validation
-    - Guarda test set en memoria (NO usado para evaluación)
+    - Divide en 70% train, 30% validation
+    - Evalúa modelos en train y validation
     - El archivo de predicción (PAKDD2010_Prediction_Data.txt) NO se usa
     """
     print("=" * 60)
     print("Credit Risk Model Training")
     print("=" * 60)
     print("\n[INFO] Estrategia: Usar solo dataset de Modeling")
-    print("       División: 70% train, 15% validation, 15% test")
-    print("       Evaluación: Solo train y validation")
-    print("       Test: Guardado en memoria, NO usado (reservado para evaluación final)")
+    print("       División: 70% train, 30% validation")
+    print("       Evaluación: Train y validation")
 
     # 1. Cargar datos (solo dataset de Modeling)
     print("\n1. Loading dataset de Modeling...")
@@ -409,23 +467,17 @@ def main():
     print(f"   X_full shape: {X_full.shape}")
     print(f"   y_full distribution:\n{y_full.value_counts(normalize=True)}")
     
-    # 3. Dividir en 70% train, 15% validation, 15% test
-    print("\n3. Splitting dataset into train/validation/test (70/15/15)...")
+    # 3. Dividir en 70% train, 30% validation
+    print("\n3. Splitting dataset into train/validation (70/30)...")
     from sklearn.model_selection import train_test_split
     
-    # Primero dividir en train (70%) y temp (30%)
-    X_train, X_temp, y_train, y_temp = train_test_split(
+    # Dividir en train (70%) y validation (30%)
+    X_train, X_val, y_train, y_val = train_test_split(
         X_full, y_full, test_size=0.3, random_state=RANDOM_STATE, shuffle=True, stratify=y_full
-    )
-    
-    # Luego dividir temp en val (15%) y test (15%)
-    X_val, X_test, y_val, y_test = train_test_split(
-        X_temp, y_temp, test_size=0.5, random_state=RANDOM_STATE, shuffle=True, stratify=y_temp
     )
     
     print(f"   Train: {X_train.shape[0]:,} muestras ({X_train.shape[0]/len(X_full)*100:.1f}%)")
     print(f"   Validation: {X_val.shape[0]:,} muestras ({X_val.shape[0]/len(X_full)*100:.1f}%)")
-    print(f"   Test: {X_test.shape[0]:,} muestras ({X_test.shape[0]/len(X_full)*100:.1f}%) - GUARDADO EN MEMORIA, NO USADO")
     print(f"   Total: {len(X_full):,} muestras")
 
     # 4. Información del dataset para el historial
@@ -433,14 +485,12 @@ def main():
         "dataset_source": "PAKDD2010_Modeling_Data.txt only",
         "train_size": int(X_train.shape[0]),
         "validation_size": int(X_val.shape[0]),
-        "test_size": int(X_test.shape[0]),
         "train_features": int(X_train.shape[1]),
         "target_distribution_train": {
             "class_0": int(y_train.value_counts().get(0, 0)),
             "class_1": int(y_train.value_counts().get(1, 0)),
         },
-        "test_usage": "stored_in_memory_not_used_for_evaluation",
-        "split_ratio": "70/15/15",
+        "split_ratio": "70/30",
     }
 
     # 5. Crear pipeline
@@ -450,7 +500,7 @@ def main():
     # 6. Entrenar modelos (el preprocessing se hace dentro de train_models)
     print("\n6. Training models...")
     best_model, best_metrics, all_results, preprocessing_time = train_models(
-        X_train, y_train, X_val, y_val, X_test, y_test, pipeline
+        X_train, y_train, X_val, y_val, pipeline
     )
 
     # 7. Guardar historial de entrenamiento
