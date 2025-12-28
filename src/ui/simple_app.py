@@ -630,7 +630,7 @@ with st.form("credit_risk_form"):
         )
         # Show alert if exceeds threshold
         if personal_income > income_threshold:
-            st.warning(f"The entered value (R$ {personal_income:,.2f}) is significantly higher than the previously recorded maximum (R$ {income_max:.2f}).")
+            st.warning(f"⚠️ The entered value (R$ {personal_income:,.2f}) is significantly higher than the maximum previously recorded (R$ {income_max:.2f}).")
         
         # Otros ingresos - sin límite superior, con alerta si excede umbral
         other_income_limits = UI_OPTIONS.get("OTHER_INCOMES", {"min": 0.0, "max": 800.0})
@@ -646,7 +646,7 @@ with st.form("credit_risk_form"):
         )
         # Show alert if exceeds threshold
         if other_incomes_input > other_income_threshold:
-            st.warning(f"The entered value (R$ {other_incomes_input:,.2f}) is significantly higher than the previously recorded maximum (R$ {other_income_max:.2f}).")
+            st.warning(f"⚠️ The entered value (R$ {other_incomes_input:,.2f}) is significantly higher than the maximum previously recorded (R$ {other_income_max:.2f}).")
         other_incomes = None if other_incomes_input == 0.0 else other_incomes_input
         
         # Valor de activos personales - sin límite superior, con alerta si excede umbral
@@ -663,7 +663,7 @@ with st.form("credit_risk_form"):
         )
         # Show alert if exceeds threshold
         if assets_input > assets_threshold:
-            st.warning(f"The entered value (R$ {assets_input:,.2f}) is significantly higher than the previously recorded maximum (R$ {assets_max:,.2f}).")
+            st.warning(f"⚠️ The entered value (R$ {assets_input:,.2f}) is significantly higher than the maximum previously recorded (R$ {assets_max:,.2f}).")
         assets_value = None if assets_input == 0.0 else assets_input
     
     with col5:
