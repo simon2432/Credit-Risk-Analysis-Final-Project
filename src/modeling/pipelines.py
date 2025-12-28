@@ -108,6 +108,7 @@ def make_catboost_pipeline():
             random_seed=42,
             verbose=False,
             scale_pos_weight=float(POS_WEIGHT),
+            allow_writing_files=False,
         )),
     ])
 
@@ -120,10 +121,7 @@ def get_podium():
         "xgboost_sample_weight": make_xgb_pipeline(),
         "lightgbm_sample_weight": make_lgbm_pipeline(),
     }
-        # if XGBClassifier is not None:
-        #     podium["xgboost_sample_weight"] = make_xgb_pipeline()
-        # if LGBMClassifier is not None:
-        #     podium["lightgbm_sample_weight"] = make_lgbm_pipeline()
+
     return podium
 
 def get_tuning_candidates():
@@ -132,9 +130,9 @@ def get_tuning_candidates():
       dict[name] = {"pipe": Pipeline, "params": dict, "n_iter": int}
     """
     common_preproc = {
-        "prep__preprocess__cat__ohe__min_frequency": [0.005, 0.01, 0.02],
-        "prep__winsorize__q_low": [0.005, 0.01],
-        "prep__winsorize__q_high": [0.99, 0.995],
+        "prep__preprocess__cat__ohe__min_frequency": [0.002, 0.005, 0.01, 0.02],
+        "prep__winsorize__q_low": [0.005, 0.01, 0.02],
+        "prep__winsorize__q_high": [0.98, 0.99, 0.995],
     }
 
     candidates = {
@@ -142,35 +140,83 @@ def get_tuning_candidates():
             "pipe": make_logreg_pipeline(),
             "params": {
                 **common_preproc,
-                "model__C": np.logspace(-3, 2, 10),
+                "model__C": np.logspace(-3.5, 1.5, 10),
                 "model__class_weight": [None, "balanced"],
+                "model__solver": ["lbfgs", "saga"],
+                "model__penalty": ["l2"],
             },
-            "n_iter": 25,
+            "n_iter": 30,
         },
         "hgb": {
             "pipe": make_hgb_pipeline(),
             "params": {
                 **common_preproc,
-                "model__learning_rate": [0.03, 0.05, 0.1],
+                "model__learning_rate": [0.01, 0.02, 0.03, 0.05],
                 "model__max_leaf_nodes": [31, 63, 127],
-                "model__min_samples_leaf": [20, 50, 100],
+                "model__min_samples_leaf": [40, 80, 120, 200],
                 "model__max_depth": [None, 3, 5],
-                "model__l2_regularization": np.logspace(-3, 1, 8),
+                "model__l2_regularization": np.logspace(-2, 1, 10),
                 "model__class_weight": [None, "balanced"],
             },
-            "n_iter": 30,
+            "n_iter": 50,
+        },
+        "gb": {
+            "pipe": make_gb_pipeline(),
+            "params": {
+                **common_preproc,
+                "model__n_estimators": [300, 500, 800],
+                "model__learning_rate": [0.005, 0.01, 0.02],
+                "model__max_depth": [2, 3],
+                "model__subsample": [0.6, 0.75],
+                "model__min_samples_split": [40, 60, 80],
+                "model__min_samples_leaf": [20, 40, 60],
+                "model__max_features": ["sqrt", "log2", None],
+            },
+            "n_iter": 50,
         },
         "catboost": {
             "pipe": make_catboost_pipeline(),
             "params": {
                 **common_preproc,
                 "model__depth": [4, 6, 8],
-                "model__learning_rate": [0.03, 0.05, 0.1],
-                "model__l2_leaf_reg": [1, 3, 10],
-                "model__iterations": [500, 800, 1200],
-                "model__scale_pos_weight": [2.0, float(POS_WEIGHT), 3.5],
+                "model__learning_rate": [0.01, 0.02, 0.03, 0.05],
+                "model__l2_leaf_reg": [3, 5, 10, 20],
+                "model__iterations": [400, 800, 1200],
+                "model__scale_pos_weight": [2.0, float(POS_WEIGHT), 3.0, 3.5],
             },
-            "n_iter": 25,
+            "n_iter": 35,
+        },
+        "xgboost": {
+            "pipe": make_xgb_pipeline(),
+            "params": {
+                **common_preproc,
+                "model__n_estimators": [300, 500, 800],
+                "model__learning_rate": [0.01, 0.02, 0.05],
+                "model__max_depth": [3, 4, 5],
+                "model__min_child_weight": [3, 5, 8, 12],
+                "model__subsample": [0.6, 0.75],
+                "model__colsample_bytree": [0.6, 0.75],
+                "model__gamma": [0.1, 0.2, 0.4],
+                "model__reg_alpha": [0.1, 0.3, 0.5],
+                "model__reg_lambda": [1.5, 2.0, 3.0],
+            },
+            "n_iter": 50,
+        },
+        "lightgbm": {
+            "pipe": make_lgbm_pipeline(),
+            "params": {
+                **common_preproc,
+                "model__n_estimators": [400, 600, 900],
+                "model__learning_rate": [0.01, 0.02, 0.05],
+                "model__num_leaves": [15, 31],
+                "model__max_depth": [3, 4, 6],
+                "model__min_child_samples": [30, 60, 100],
+                "model__subsample": [0.6, 0.75],
+                "model__colsample_bytree": [0.6, 0.75],
+                "model__reg_alpha": [0.1, 0.3, 0.5],
+                "model__reg_lambda": [2.0, 3.0, 5.0],
+            },
+            "n_iter": 50,
         },
     }
     return candidates

@@ -6,11 +6,13 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+from math import erf, sqrt
 
 import joblib
 import numpy as np
 import pandas as pd
 import sklearn
+import matplotlib.pyplot as plt
 from sklearn.metrics import (
     average_precision_score,
     f1_score,
@@ -18,6 +20,7 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     roc_auc_score,
+    roc_curve,
 )
 from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold, train_test_split
 from sklearn.pipeline import Pipeline
@@ -162,8 +165,10 @@ def evaluate_podium_cv(
         scores = {
             "test_roc_auc": [],
             "test_pr_auc": [],
+            "test_accuracy_ratio": [],
             "train_roc_auc": [],
             "train_pr_auc": [],
+            "train_accuracy_ratio": [],
         }
 
         for train_idx, test_idx in cv.split(X, y):
@@ -182,8 +187,10 @@ def evaluate_podium_cv(
 
             scores["train_roc_auc"].append(roc_auc_score(y_train, y_train_score))
             scores["train_pr_auc"].append(average_precision_score(y_train, y_train_score))
+            scores["train_accuracy_ratio"].append(_accuracy_ratio(y_train, y_train_score))
             scores["test_roc_auc"].append(roc_auc_score(y_test, y_test_score))
             scores["test_pr_auc"].append(average_precision_score(y_test, y_test_score))
+            scores["test_accuracy_ratio"].append(_accuracy_ratio(y_test, y_test_score))
 
         summary = {}
         for k, arr in scores.items():
@@ -200,14 +207,14 @@ def evaluate_podium_cv(
 
 
 def pick_best_model(
-    cv_metrics: Dict[str, Dict[str, float]],
-    *,
-    primary: str = "test_pr_auc_mean",
-    secondary: str = "test_roc_auc_mean",
+        cv_metrics: Dict[str, Dict[str, float]],
+        *,
+        primary: str = "test_roc_auc_mean",
+        secondary: str = "test_accuracy_ratio_mean",
 ) -> str:
     """
     Pick best model name from CV metrics.
-    Defaults: maximize PR-AUC, tie-break with ROC-AUC.
+    Defaults: maximize ROC-AUC, tie-break with Accuracy Ratio.
     """
     best_name = None
     best_tuple = None
@@ -264,6 +271,285 @@ def _prediction_stats(y_true: np.ndarray, y_score: np.ndarray, threshold: float)
         },
         "pred_rate": float(np.mean(y_pred)),
         "actual_rate": float(np.mean(y_true)),
+    }
+
+def _cap_curve(y_true: np.ndarray, y_score: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    y_true = np.asarray(y_true).astype(int)
+    y_score = np.asarray(y_score).astype(float)
+    order = np.argsort(-y_score)
+    y_sorted = y_true[order]
+    cum_pos = np.cumsum(y_sorted)
+    total_pos = cum_pos[-1] if cum_pos.size else 0
+    pop = np.arange(1, len(y_true) + 1)
+    pop_pct = pop / len(y_true)
+    cap = cum_pos / total_pos if total_pos > 0 else np.zeros_like(pop_pct)
+    return pop_pct, cap
+
+def _cap_perfect_curve(y_true: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    y_true = np.asarray(y_true).astype(int)
+    n = len(y_true)
+    pos = int(y_true.sum())
+    pop = np.arange(1, n + 1)
+    pop_pct = pop / n
+    if pos == 0:
+        return pop_pct, np.zeros_like(pop_pct)
+    perfect = np.minimum(pop / pos, 1.0)
+    return pop_pct, perfect
+
+def _accuracy_ratio(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    x, cap = _cap_curve(y_true, y_score)
+    x_p, perfect = _cap_perfect_curve(y_true)
+    area_model = float(np.trapz(cap, x))
+    area_random = 0.5
+    area_perfect = float(np.trapz(perfect, x_p))
+    denom = area_perfect - area_random
+    if denom <= 0:
+        return 0.0
+    return float((area_model - area_random) / denom)
+
+def _pietra_index(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    x, cap = _cap_curve(y_true, y_score)
+    return float(np.max(cap - x))
+
+def _hit_rate_at_threshold(y_true: np.ndarray, y_score: np.ndarray, threshold: float) -> float:
+    fpr, tpr, thresholds = roc_curve(y_true, y_score)
+    idx = np.argmin(np.abs(thresholds - threshold))
+    return float(tpr[idx])
+
+def _curve_metrics(y_true: np.ndarray, y_score: np.ndarray, threshold_0_5: float, threshold_opt: float) -> Dict[str, Any]:
+    return {
+        "roc_auc": float(roc_auc_score(y_true, y_score)),
+        "accuracy_ratio": _accuracy_ratio(y_true, y_score),
+        "pietra_index": _pietra_index(y_true, y_score),
+        "hit_rate_0_5": _hit_rate_at_threshold(y_true, y_score, threshold_0_5),
+        "hit_rate_opt": _hit_rate_at_threshold(y_true, y_score, threshold_opt),
+    }
+
+def _normal_cdf(z: float) -> float:
+    return 0.5 * (1.0 + erf(z / sqrt(2.0)))
+
+def _binomial_calibration_test(y_true: np.ndarray, y_score: np.ndarray) -> Dict[str, Any]:
+    y_true = np.asarray(y_true).astype(int)
+    y_score = np.asarray(y_score).astype(float)
+    n = int(y_true.size)
+    k = int(y_true.sum())
+    p = float(np.clip(np.mean(y_score), 1e-12, 1.0 - 1e-12))
+    var = n * p * (1.0 - p)
+    z = (k - n * p) / sqrt(var) if var > 0 else 0.0
+    p_value = 2.0 * (1.0 - _normal_cdf(abs(z)))
+    return {
+        "n": n,
+        "observed_defaults": k,
+        "expected_defaults": float(n * p),
+        "z_score": float(z),
+        "p_value": float(p_value),
+    }
+
+def _hosmer_lemeshow(y_true: np.ndarray, y_score: np.ndarray, n_bins: int = 10) -> Dict[str, Any]:
+    y_true = np.asarray(y_true).astype(int)
+    y_score = np.asarray(y_score).astype(float)
+    df = pd.DataFrame({"y": y_true, "p": y_score})
+    try:
+        df["bin"] = pd.qcut(df["p"], q=n_bins, duplicates="drop")
+    except ValueError:
+        df["bin"] = pd.cut(df["p"], bins=n_bins)
+
+    grouped = df.groupby("bin", observed=True)
+    obs = grouped["y"].sum()
+    exp = grouped["p"].sum()
+    n = grouped["y"].count()
+
+    eps = 1e-12
+    hl_stat = float(((obs - exp) ** 2 / (exp * (1.0 - exp / n).clip(eps))).sum())
+    df_hl = int(max(len(obs) - 2, 1))
+
+    p_value = None
+    try:
+        from scipy.stats import chi2
+        p_value = float(chi2.sf(hl_stat, df_hl))
+    except Exception:
+        p_value = None
+
+    return {
+        "n_bins": int(len(obs)),
+        "hl_stat": hl_stat,
+        "df": df_hl,
+        "p_value": p_value,
+    }
+
+def _calibration_report(y_true: np.ndarray, y_score: np.ndarray) -> Dict[str, Any]:
+    return {
+        "binomial_test": _binomial_calibration_test(y_true, y_score),
+        "hosmer_lemeshow": _hosmer_lemeshow(y_true, y_score, n_bins=10),
+    }
+
+def _calibration_table(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    *,
+    n_bins: int = 10,
+    z_99: float = 2.576,
+) -> pd.DataFrame:
+    y_true = np.asarray(y_true).astype(int)
+    y_score = np.asarray(y_score).astype(float)
+    df = pd.DataFrame({"y": y_true, "p": y_score})
+    try:
+        df["bin"] = pd.qcut(df["p"], q=n_bins, duplicates="drop")
+    except ValueError:
+        df["bin"] = pd.cut(df["p"], bins=n_bins)
+
+    total = len(df)
+    rows = []
+    for i, (bin_label, grp) in enumerate(df.groupby("bin", observed=True), start=1):
+        n = int(len(grp))
+        defaults = int(grp["y"].sum())
+        p_hat = float(grp["p"].mean()) if n > 0 else 0.0
+        default_rate = (defaults / n * 100.0) if n > 0 else 0.0
+        expected_defaults = p_hat * n
+        se = sqrt(p_hat * (1.0 - p_hat) / n) if n > 0 else 0.0
+        lower_p = max(0.0, p_hat - z_99 * se)
+        upper_p = min(1.0, p_hat + z_99 * se)
+        lower_n = lower_p * n
+        upper_n = upper_p * n
+
+        if pd.isna(bin_label):
+            range_label = "NA"
+        else:
+            left = float(bin_label.left) * 100.0
+            right = float(bin_label.right) * 100.0
+            range_label = f"{left:.1f}-{right:.1f}"
+
+        result = "Correcto" if (defaults >= lower_n and defaults <= upper_n) else "Revisar"
+
+        rows.append(
+            {
+                "bin": i,
+                "pd_range_pct": range_label,
+                "n": n,
+                "n_pct": round(n / total * 100.0, 2) if total else 0.0,
+                "defaults": defaults,
+                "default_rate_pct": round(default_rate, 2),
+                "estimated_pd_pct": round(p_hat * 100.0, 2),
+                "expected_defaults": round(expected_defaults, 2),
+                "expected_defaults_99_low": round(lower_n, 2),
+                "expected_defaults_99_high": round(upper_n, 2),
+                "result": result,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+def save_calibration_table(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    *,
+    model_dir: Path,
+    split_name: str,
+) -> Path:
+    model_dir.mkdir(parents=True, exist_ok=True)
+    df = _calibration_table(y_true, y_score, n_bins=10)
+    out_path = model_dir / f"calibration_table_{split_name}.csv"
+    df.to_csv(out_path, index=False)
+    print(f"\nCalibration table saved to: {out_path}")
+    return out_path
+
+
+def save_oos_discriminatory_stats(
+    model_name: str,
+    test_summary: Dict[str, Any],
+    *,
+    model_dir: Path,
+) -> Path:
+    model_dir.mkdir(parents=True, exist_ok=True)
+    cm = test_summary.get("curve_metrics", {})
+    df = pd.DataFrame(
+        [
+            {
+                "model_name": model_name,
+                "roc_auc": cm.get("roc_auc"),
+                "accuracy_ratio": cm.get("accuracy_ratio"),
+                "pietra_index": cm.get("pietra_index"),
+                "hit_rate_0_5": cm.get("hit_rate_0_5"),
+                "hit_rate_opt": cm.get("hit_rate_opt"),
+            }
+        ]
+    )
+    out_path = model_dir / "discriminatory_stats_test.csv"
+    df.to_csv(out_path, index=False)
+    print(f"\nDiscriminatory stats (test) saved to: {out_path}")
+    return out_path
+
+
+def save_pd_distribution_plot(
+    y_in_score: np.ndarray,
+    y_out_score: np.ndarray,
+    *,
+    out_dir: Path,
+    filename: str = "pd_distribution_in_vs_out.png",
+) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / filename
+    plt.figure(figsize=(7, 4))
+    bins = np.linspace(0.0, 1.0, 51)
+    plt.hist(y_in_score, bins=bins, alpha=0.6, label="In-sample", color="#4c78a8")
+    plt.hist(y_out_score, bins=bins, alpha=0.6, label="Out-of-sample", color="#f58518")
+    plt.xlabel("Predicted default probability")
+    plt.ylabel("Count")
+    plt.title("PD Distribution: In-sample vs Out-of-sample")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(out_path)
+    plt.close()
+    return out_path
+
+def _safe_name(name: str) -> str:
+    return "".join(c.lower() if c.isalnum() else "_" for c in name).strip("_")
+
+def save_comparison_curves(
+    curves: list[Dict[str, Any]],
+    *,
+    y_true: np.ndarray,
+    split_name: str,
+    out_dir: Path,
+) -> Dict[str, str]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    roc_png = out_dir / f"roc_comparison_{split_name}.png"
+    cap_png = out_dir / f"cap_comparison_{split_name}.png"
+
+    # ROC comparison
+    plt.figure(figsize=(7, 6))
+    for item in curves:
+        fpr, tpr, _ = roc_curve(y_true, item["y_score"])
+        auc = roc_auc_score(y_true, item["y_score"])
+        plt.plot(fpr, tpr, label=f"{item['model_name']} (AUC={auc:.3f})")
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Random")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate (Hit Rate)")
+    plt.title(f"ROC Comparison ({split_name})")
+    plt.legend(loc="lower right", fontsize=8)
+    plt.tight_layout()
+    plt.savefig(roc_png)
+    plt.close()
+
+    # CAP comparison
+    plt.figure(figsize=(7, 6))
+    for item in curves:
+        x, cap = _cap_curve(y_true, item["y_score"])
+        plt.plot(x, cap, label=item["model_name"])
+    x_p, perfect = _cap_perfect_curve(y_true)
+    plt.plot(x_p, perfect, linestyle=":", color="black", label="Perfect")
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Random")
+    plt.xlabel("Population (cumulative)")
+    plt.ylabel("Defaults captured (cumulative)")
+    plt.title(f"CAP / Lorenz Comparison ({split_name})")
+    plt.legend(loc="lower right", fontsize=8)
+    plt.tight_layout()
+    plt.savefig(cap_png)
+    plt.close()
+
+    return {
+        "roc_png": str(roc_png),
+        "cap_png": str(cap_png),
     }
 
 def evaluate_train_val(
@@ -332,11 +618,14 @@ def train_and_evaluate_models(
     min_precision: Optional[float] = None,
     min_recall: Optional[float] = None,
     default_threshold: float = 0.5,
+    curves_dir: Optional[Path] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[Pipeline]]:
     all_results = []
     best_name = None
     best_score = float("-inf")
     best_pipe = None
+    comparison_curves: list[Dict[str, Any]] = []
+    y_val_arr = np.asarray(y_val).astype(int)
 
     sample_weights = compute_sample_weight("balanced", np.asarray(y_train).astype(int))
 
@@ -365,6 +654,19 @@ def train_and_evaluate_models(
                 default_threshold=default_threshold,
             )
 
+            y_val_score = _get_proba(pipe, X_val)
+            curve_metrics = _curve_metrics(
+                y_val_arr,
+                y_val_score,
+                threshold_0_5=default_threshold,
+                threshold_opt=metrics["optimal_threshold_info"]["optimal_threshold"],
+            )
+            metrics["curve_metrics"] = curve_metrics
+            if curves_dir is not None:
+                comparison_curves.append(
+                    {"model_name": name, "y_score": y_val_score}
+                )
+
             model_params = pipe.named_steps["model"].get_params()
             metrics["training_time_seconds"] = float(train_time)
             metrics["model_name"] = name
@@ -383,6 +685,8 @@ def train_and_evaluate_models(
             print(f"  Val ROC-AUC: {metrics['val_metrics']['roc_auc']:.4f}")
             print(f"  Val PR-AUC: {metrics['val_metrics']['pr_auc']:.4f}")
             print(f"  Val F1 (0.5): {metrics['val_metrics']['f1']:.4f}")
+            print(f"  Val Accuracy Ratio: {curve_metrics['accuracy_ratio']:.4f}")
+            print(f"  Val Pietra Index: {curve_metrics['pietra_index']:.4f}")
             print(
                 f"  Optimal Threshold (val): "
                 f"{metrics['optimal_threshold_info']['optimal_threshold']:.4f}"
@@ -401,6 +705,14 @@ def train_and_evaluate_models(
     if best_name is None:
         raise ValueError("No model was successfully trained")
 
+    if curves_dir is not None and comparison_curves:
+        save_comparison_curves(
+            comparison_curves,
+            y_true=y_val_arr,
+            split_name="val",
+            out_dir=curves_dir,
+        )
+
     best_metrics = next(m for m in all_results if m["model_name"] == best_name)
     return best_metrics, all_results, best_pipe
 
@@ -417,6 +729,12 @@ def evaluate_on_test(
     y_test_score = _get_proba(pipe, X_test)
     return {
         "metrics": _metrics_block(y_test_arr, y_test_score, threshold=default_threshold),
+        "curve_metrics": _curve_metrics(
+            y_test_arr,
+            y_test_score,
+            threshold_0_5=default_threshold,
+            threshold_opt=optimal_threshold,
+        ),
         "prediction_stats": {
             "threshold_0_5": _prediction_stats(y_test_arr, y_test_score, default_threshold),
             "threshold_opt": _prediction_stats(y_test_arr, y_test_score, optimal_threshold),
@@ -468,6 +786,7 @@ def save_prediction_stats(
             {
                 "model_name": r["model_name"],
                 "prediction_stats": r.get("prediction_stats", {}),
+                "curve_metrics": r.get("curve_metrics", {}),
             }
             for r in all_results
         ],
@@ -476,6 +795,32 @@ def save_prediction_stats(
     stats_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\nPrediction stats saved to: {stats_path}")
     return stats_path
+
+
+def save_discriminatory_stats(
+    all_results: list[Dict[str, Any]],
+    *,
+    model_dir: Path,
+) -> Path:
+    model_dir.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for r in all_results:
+        cm = r.get("curve_metrics", {})
+        rows.append(
+            {
+                "model_name": r["model_name"],
+                "roc_auc": cm.get("roc_auc"),
+                "accuracy_ratio": cm.get("accuracy_ratio"),
+                "pietra_index": cm.get("pietra_index"),
+                "hit_rate_0_5": cm.get("hit_rate_0_5"),
+                "hit_rate_opt": cm.get("hit_rate_opt"),
+            }
+        )
+    df = pd.DataFrame(rows)
+    out_path = model_dir / "discriminatory_stats_val.csv"
+    df.to_csv(out_path, index=False)
+    print(f"\nDiscriminatory stats saved to: {out_path}")
+    return out_path
 
 
 def save_model_and_preprocessor(
@@ -733,6 +1078,7 @@ def main():
     print(f"\nBest by CV (PR-AUC): {best_cv_model}")
 
     print("\n5. Train/val evaluation for all models...")
+    curves_dir = MODEL_DIR / "curves"
     best_metrics, all_results, _ = train_and_evaluate_models(
         podium,
         X_train,
@@ -740,6 +1086,7 @@ def main():
         X_val,
         y_val,
         threshold_objective="f1",
+        curves_dir=curves_dir,
     )
     best_model_name = best_metrics["model_name"]
     print(f"\nBest by holdout PR-AUC: {best_model_name}")
@@ -771,8 +1118,23 @@ def main():
         default_threshold=0.5,
         optimal_threshold=best_threshold,
     )
-    _save_json(test_summary, Path(MODEL_DIR) / "test_metrics.json")
-    print("\n[INFO] Reserved test set evaluation saved (informational only).")
+    y_val_score = _get_proba(best_pipe, X_val)
+    y_test_score = _get_proba(best_pipe, X_test)
+    test_summary["calibration"] = _calibration_report(np.asarray(y_test).astype(int), y_test_score)
+    best_metrics["calibration"] = _calibration_report(np.asarray(y_val).astype(int), y_val_score)
+    best_metrics["calibration_table_path"] = str(
+        save_calibration_table(np.asarray(y_val).astype(int), y_val_score, model_dir=MODEL_DIR, split_name="val")
+    )
+    test_summary["calibration_table_path"] = str(
+        save_calibration_table(np.asarray(y_test).astype(int), y_test_score, model_dir=MODEL_DIR, split_name="test")
+    )
+    test_summary["discriminatory_table_path"] = str(
+        save_oos_discriminatory_stats(best_cv_model, test_summary, model_dir=MODEL_DIR)
+    )
+    test_summary["pd_distribution_path"] = str(
+        save_pd_distribution_plot(y_val_score, y_test_score, out_dir=curves_dir)
+    )
+    print("\n[INFO] Reserved test set evaluation computed (informational only).")
 
     save_model_and_preprocessor(
         bundle,
@@ -783,6 +1145,7 @@ def main():
     )
 
     stats_path = save_prediction_stats(all_results, model_dir=MODEL_DIR, test_summary=test_summary)
+    disc_path = save_discriminatory_stats(all_results, model_dir=MODEL_DIR)
     history_path = save_training_history(
         all_results,
         best_cv_model,
@@ -797,6 +1160,7 @@ def main():
     print("=" * 60)
     print(f"Best model (CV): {best_cv_model}")
     print(f"Prediction stats: {stats_path}")
+    print(f"Discriminatory stats: {disc_path}")
     print(f"Training history: {history_path}")
 
 

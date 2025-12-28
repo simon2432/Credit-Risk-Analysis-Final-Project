@@ -18,7 +18,7 @@ def main():
     cv_metrics = evaluate_podium_cv(podium, X, y, save_path=str(out_dir / "metrics_cv.json"))
 
     best = pick_best_model(cv_metrics)
-    print("Best model by PR-AUC", best)
+    print("Best model by ROC-AUC + Accuracy Ratio", best)
 
 
 if __name__ == "__main__":

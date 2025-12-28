@@ -16,6 +16,8 @@ model_version = os.getenv("MODEL_VERSION", "production")
 out_dir = Path("models") / model_version
 
 def main():
+    print("[train_final] Deprecated. Use: python -m src.modeling.train_eval")
+    return
     tuning_dir = out_dir / "tunig"
     out_dir.mkdir(parents=True, exist_ok=True)
     tuning_dir.mkdir(parents=True, exist_ok=True)
