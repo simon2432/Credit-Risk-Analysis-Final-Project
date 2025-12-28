@@ -833,6 +833,7 @@ def save_model_and_preprocessor(
     model_name: str,
     model_dir: Path,
     preprocessor_path: str,
+    test_summary: Optional[Dict[str, Any]] = None,
 ) -> None:
     model_dir.mkdir(parents=True, exist_ok=True)
 
@@ -848,6 +849,9 @@ def save_model_and_preprocessor(
     metrics_path = model_dir / "metrics.txt"
     with open(metrics_path, "w", encoding="utf-8") as f:
         f.write(f"Best Model: {model_name}\n\n")
+        f.write("=" * 60 + "\n")
+        f.write("TRAINING METRICS\n")
+        f.write("=" * 60 + "\n\n")
         f.write("Train Metrics (threshold=0.5):\n")
         for metric, value in metrics["train_metrics"].items():
             f.write(f"  {metric}: {value:.4f}\n")
@@ -862,13 +866,53 @@ def save_model_and_preprocessor(
             f"{metrics['optimal_threshold_info']['optimal_threshold']:.4f}\n"
         )
         f.write(
-            f"Approval Rate @ Optimal Threshold: "
+            f"Approval Rate @ Optimal Threshold (validation): "
             f"{metrics['optimal_threshold_info']['approval_rate']:.4f}\n"
         )
         f.write(
-            f"Reject Rate @ Optimal Threshold: "
+            f"Reject Rate @ Optimal Threshold (validation): "
             f"{metrics['optimal_threshold_info']['reject_rate']:.4f}\n"
         )
+        
+        # Add test metrics if available
+        if test_summary is not None:
+            f.write("\n" + "=" * 60 + "\n")
+            f.write("FINAL TEST METRICS (Out-of-Sample Performance)\n")
+            f.write("=" * 60 + "\n\n")
+            f.write("Test Metrics (threshold=0.5):\n")
+            test_metrics = test_summary.get("metrics", {})
+            for metric, value in test_metrics.items():
+                f.write(f"  {metric}: {value:.4f}\n")
+            
+            f.write("\nTest Metrics (optimal threshold):\n")
+            optimal_threshold = metrics["optimal_threshold_info"]["optimal_threshold"]
+            test_pred_stats_opt = test_summary.get("prediction_stats", {}).get("threshold_opt", {})
+            if test_pred_stats_opt:
+                f.write(f"  Approval Rate: {1.0 - test_pred_stats_opt.get('pred_rate', 0):.4f}\n")
+                f.write(f"  Reject Rate: {test_pred_stats_opt.get('pred_rate', 0):.4f}\n")
+            
+            # Add curve metrics
+            curve_metrics = test_summary.get("curve_metrics", {})
+            if curve_metrics:
+                f.write("\nTest Discriminatory Metrics:\n")
+                f.write(f"  ROC-AUC: {curve_metrics.get('roc_auc', 0):.4f}\n")
+                f.write(f"  Accuracy Ratio: {curve_metrics.get('accuracy_ratio', 0):.4f}\n")
+                f.write(f"  Pietra Index: {curve_metrics.get('pietra_index', 0):.4f}\n")
+                f.write(f"  Hit Rate @ 0.5: {curve_metrics.get('hit_rate_0_5', 0):.4f}\n")
+                f.write(f"  Hit Rate @ Optimal: {curve_metrics.get('hit_rate_opt', 0):.4f}\n")
+            
+            # Add calibration info if available
+            calibration = test_summary.get("calibration", {})
+            if calibration:
+                f.write("\nTest Calibration:\n")
+                binomial = calibration.get("binomial_test", {})
+                if binomial:
+                    f.write(f"  Binomial Test - p-value: {binomial.get('p_value', 0):.4f}\n")
+                    f.write(f"  Observed Defaults: {binomial.get('observed_defaults', 0)}\n")
+                    f.write(f"  Expected Defaults: {binomial.get('expected_defaults', 0):.2f}\n")
+                hosmer = calibration.get("hosmer_lemeshow", {})
+                if hosmer and hosmer.get("p_value") is not None:
+                    f.write(f"  Hosmer-Lemeshow - p-value: {hosmer.get('p_value', 0):.4f}\n")
     print(f"Metrics saved to: {metrics_path}")
 
     threshold_path = model_dir / "optimal_threshold.txt"
@@ -1153,6 +1197,7 @@ def main():
         model_name=best_cv_model,
         model_dir=MODEL_DIR,
         preprocessor_path=PREPROCESSOR_FILE,
+        test_summary=test_summary,
     )
 
     stats_path = save_prediction_stats(all_results, model_dir=MODEL_DIR, test_summary=test_summary)

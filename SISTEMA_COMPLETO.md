@@ -1,230 +1,243 @@
-# 📚 Sistema Completo de Credit Risk Analysis
+# Complete Credit Risk Analysis System
 
-## 🎯 Resumen Ejecutivo
+## Executive Summary
 
-Este sistema evalúa el riesgo crediticio de clientes usando Machine Learning. El flujo completo es:
+This system evaluates customer credit risk using Machine Learning. The complete flow is:
 
-1. **Entrenamiento**: Se procesa el dataset, se entrenan modelos y se guarda el mejor.
-2. **Predicción**: El usuario completa un formulario en la UI → API procesa los datos → Modelo predice → Se muestra el resultado.
-
----
-
-## 🔄 Flujo Completo del Sistema
-
-### 1️⃣ **Fase de Entrenamiento** (`src/train_model.py`)
-
-```
-Dataset Original (50,000 filas × 53 columnas)
-    ↓
-PreprocessingPipeline.fit_transform()
-    ↓ Transformación automática:
-      - Limpieza (remueve constantes y columnas alta cardinalidad+missing, normaliza Y/N)
-      - Feature Engineering (crea 17 nuevas features)
-      - Manejo de missing values (imputación + 6 indicadores)
-      - Encoding (OneHot para baja cardinalidad, Ordinal para alta)
-      - Scaling (MinMaxScaler 0-1)
-    ↓
-Dataset Procesado (50,000 filas × 286 features numéricas)
-    ↓
-Entrenamiento de 3 modelos:
-  - Logistic Regression (class_weight='balanced')
-  - Random Forest (class_weight='balanced')
-  - Gradient Boosting (sample_weight='balanced')
-    ↓
-Evaluación en conjunto de validación
-    ↓
-Cálculo de threshold óptimo (Youden's J statistic)
-    ↓
-Guardado del mejor modelo:
-  ✓ models/production/model.joblib (modelo)
-  ✓ models/preprocessor/preprocessor.joblib (pipeline)
-  ✓ models/production/optimal_threshold.txt (threshold óptimo)
-  ✓ models/production/metrics.txt (métricas de rendimiento)
-```
-
-**Nota importante:** El preprocessing NO guarda archivos CSV procesados. En su lugar, guarda el **pipeline entrenado** (`preprocessor.joblib`) que puede reutilizarse para cualquier dato nuevo.
+1. **Training**: The dataset is processed, models are trained, and the best one is saved.
+2. **Prediction**: User completes a form in the UI → API processes the data → Model predicts → Result is displayed.
 
 ---
 
-### 2️⃣ **Fase de Predicción** (API + UI)
+## Complete System Flow
+
+### 1. **Training Phase** (`src/modeling/train_eval.py`)
 
 ```
-Usuario completa formulario en UI (Streamlit)
-    ↓ Solo proporciona campos esenciales (otros son opcionales)
-UI construye request JSON con features básicas
+Original Dataset (50,000 rows × 53 columns)
     ↓
-UI envía POST request a API (FastAPI)
+Split into Train/Validation/Test (70% / 15% / 15%)
     ↓
-API recibe request simplificado
+Cross-Validation (5 folds) to compare models
     ↓
-Feature Mapper completa features faltantes:
-  - Agrega las 9 columnas constantes (valores por defecto)
-  - Completa campos opcionales con valores por defecto o None
-  - Ordena columnas en el orden correcto del dataset original
+Training of multiple models:
+  - Logistic Regression (balanced)
+  - HistGradientBoostingClassifier (balanced)
+  - Gradient Boosting (sample_weight)
+  - XGBoost (sample_weight)
+  - LightGBM (sample_weight)
+  - CatBoost (scale_pos_weight)
     ↓
-API crea DataFrame con todas las 53 columnas originales
+Selection of best model by PR-AUC in CV
     ↓
-PreprocessingPipeline.transform() (usa pipeline guardado)
-  - Aplica TODAS las transformaciones guardadas
-  - Mismo procesamiento que durante entrenamiento
-  - Resultado: 286 features numéricas finales
+Final training of best model on complete train set
     ↓
-Modelo.predict_proba() → Obtiene probabilidad de default (0-1)
+Preprocessing Pipeline (7 steps):
+  1. NULL string cleaning
+  2. Column removal (ID + high cardinality)
+  3. Constant column removal
+  4. Missing indicator creation (6 features)
+  5. Outlier winsorization (1% and 99% percentiles)
+  6. Feature Engineering (11 new features)
+  7. ColumnTransformer:
+     - Numeric: median imputation + StandardScaler
+     - Categorical: mode imputation + OneHotEncoder
     ↓
-API compara probabilidad con optimal_threshold (0.5059):
-  - Si probabilidad ≥ 0.5059 → RECHAZADO
-  - Si probabilidad < 0.5059 → APROBADO
+Processed Dataset (~100-200 final features)
     ↓
-API retorna respuesta JSON:
+Optimal threshold calculation (F1 maximization on validation)
+    ↓
+Saving best model:
+  ✓ models/production/model.joblib (bundle: pipeline + model + threshold)
+  ✓ models/preprocessor/preprocessor.joblib (separate pipeline)
+  ✓ models/production/optimal_threshold.txt (optimal threshold)
+  ✓ models/production/metrics.txt (performance metrics)
+  ✓ models/production/metrics_cv.json (cross-validation metrics)
+  ✓ models/training_history/ (complete training history)
+```
+
+**Important note:** Preprocessing does NOT save processed CSV files. Instead, it saves the **trained pipeline** (`preprocessor.joblib`) that can be reused for any new data. The model is saved as a bundle that includes the complete pipeline.
+
+---
+
+### 2. **Prediction Phase** (API + UI)
+
+```
+User completes form in UI (Streamlit)
+    ↓ Only provides essential fields (others are optional)
+UI builds JSON request with basic features
+    ↓
+UI sends POST request to API (FastAPI)
+    ↓
+API receives simplified request
+    ↓
+Feature Mapper completes missing features:
+  - Adds the 9 constant columns (default values)
+  - Fills optional fields with default values or None
+  - Orders columns in the correct order of the original dataset
+    ↓
+API creates DataFrame with all original columns
+    ↓
+Pipeline.transform() (uses saved pipeline)
+  - Applies ALL saved transformations:
+    1. NULL cleaning
+    2. Column removal
+    3. Constant removal
+    4. Missing indicators
+    5. Winsorization
+    6. Feature engineering
+    7. Imputation + Encoding + Scaling
+  - Same processing as during training
+  - Result: ~100-200 final numeric features
+    ↓
+Model.predict_proba() → Gets default probability (0-1)
+    ↓
+API compares probability with optimal_threshold (calculated during training):
+  - If probability ≥ threshold → REJECTED
+  - If probability < threshold → APPROVED
+    ↓
+API returns JSON response:
   {
-    "prediction": "approved" o "rejected",
+    "prediction": "approved" or "rejected",
     "probability": 0.XX,
     "confidence": "high/medium/low"
   }
     ↓
-UI muestra resultado al usuario con explicación
+UI displays result to user with explanation
 ```
 
 ---
 
-## 🔧 Componentes del Sistema
+## System Components
 
-### **PreprocessingPipeline** (`src/preprocessing.py`)
+### **Preprocessing Pipeline** (`src/preprocessing.py`)
 
-Pipeline reutilizable que transforma datos raw en formato que el modelo entiende. Consta de **6 pasos secuenciales**:
+Reusable pipeline that transforms raw data into a format the model understands. Consists of **7 sequential steps**:
 
-1. **Limpieza Inicial**
+1. **NULL String Cleaning**
 
-   - Remueve `ID_CLIENT`
-   - Convierte flags Y/N → 0/1
-   - Identifica y remueve **9 columnas constantes**
+   - Converts placeholders "NULL", "NULL.1", "NULL.2", etc. to real NaN values
+   - Converts empty strings to NaN
 
-2. **Manejo de Outliers**
+2. **Column Removal**
 
-   - No se aplica Winsorization
-   - Basado en el EDA, el porcentaje de outliers es bajo (~2% máximo)
-   - Los valores extremos son informativos para credit risk
+   - Removes `ID_CLIENT` (unique identifier)
+   - Removes high cardinality columns: `CITY_OF_BIRTH`, `RESIDENCIAL_CITY`, `RESIDENCIAL_BOROUGH`, `PROFESSIONAL_CITY`, `PROFESSIONAL_BOROUGH`
 
-3. **Feature Engineering**
+3. **Constant Column Removal**
 
-   - Crea **17 nuevas features**:
-     - Ratios financieros (ingresos/activos, ingresos por dependiente, etc.)
-     - Scores de estabilidad (años en residencia/trabajo)
-     - Conteos (tarjetas, métodos de contacto)
-     - Comparaciones geográficas (estado residencia vs nacimiento, mismo ZIP, etc.)
-     - Features de cuentas bancarias
-     - Edad al cuadrado (relaciones no lineales)
-   - **Nota:** Features de documentos fueron removidas (usaban columnas constantes)
+   - Automatically detects and removes columns without variance (all have the same value)
+   - Typically removes 9 constant columns (CLERK_TYPE, FLAG_MOBILE_PHONE, etc.)
 
-4. **Manejo de Missing Values**
+4. **Missing Indicators**
 
-   - Crea **6 indicadores binarios** para missing importantes
-   - Imputa: moda para categóricas, mediana para numéricas
-   - **Resultado:** ~62 → ~68 columnas
+   - Creates **6 binary features** that indicate if important variables have missing values
+   - Variables: PROFESSION_CODE, MONTHS_IN_RESIDENCE, MATE_PROFESSION_CODE, MATE_EDUCATION_LEVEL, RESIDENCE_TYPE, OCCUPATION_TYPE
 
-5. **Encoding**
+5. **Winsorization (Outlier Capping)**
 
-   - **Binarias (2 valores):** OrdinalEncoder
-   - **Baja cardinalidad (≤20 categorías):** OneHotEncoder
-   - **Alta cardinalidad (>20 categorías):** OrdinalEncoder
-   - **Resultado:** 286 features numéricas finales
+   - Limits extreme values using 1% and 99% percentiles from the training set
+   - Applied to 10 numeric variables (income, assets, age, etc.)
 
-6. **Scaling**
-   - MinMaxScaler (normaliza todas las features a rango 0-1)
+6. **Feature Engineering**
 
-**Por qué guardamos el pipeline y no los datos procesados:**
+   - Creates **11 new features**:
+     - **Financial (3):** INCOME_TOTAL, INCOME_RATIO, HAS_OTHER_INCOME
+     - **Stability (3):** YEARS_IN_RESIDENCE, YEARS_IN_JOB, STABILITY_SCORE
+     - **Cards (2):** CARDS_COUNT, HAS_ANY_CARD
+     - **Documentation (1):** DOCS_COUNT
+     - **Cyclical (2):** PAYMENT_DAY_SIN, PAYMENT_DAY_COS
 
-- ✅ Reutilizable para nuevos datos
-- ✅ Menos espacio (solo guarda transformadores, no datos)
-- ✅ Consistencia garantizada (mismo preprocessing siempre)
+7. **ColumnTransformer (Imputation + Encoding + Scaling)**
+
+   - **Numeric:** Median imputation + StandardScaler (mean=0, std=1)
+   - **Categorical:** Mode imputation + OneHotEncoder (with grouping of infrequent categories <1%)
+   - **Result:** ~100-200 final numeric features (depends on unique categories)
+
+**Why we save the pipeline and not processed data:**
+
+- Reusable for new data
+- Less space (only saves transformers, not data)
+- Guaranteed consistency (same preprocessing always)
 
 ---
 
 ### **Feature Mapper** (`src/api/feature_mapper.py`)
 
-Convierte el input simplificado de la UI al formato completo que requiere el modelo:
+Converts simplified input from the UI to the complete format required by the model:
 
-- Completa las **9 columnas constantes** (que se eliminan después pero deben estar presentes)
-- Rellena campos opcionales con valores por defecto o `None`
-- Ordena las columnas en el orden correcto del dataset original
-- Garantiza que el DataFrame tenga exactamente 53 columnas antes del preprocessing
-
----
-
-### **Modelo** (`models/production/model.joblib`)
-
-**Modelo seleccionado:** Gradient Boosting Classifier
-
-**Métricas actuales:**
-
-- **ROC-AUC:** 0.64 (capacidad de distinguir entre clases)
-- **F1:** 0.44 (balance entre precisión y recall)
-- **Precision:** 0.35 (cuando predice "riesgoso", ¿cuántas veces tiene razón?)
-- **Recall:** 0.58 (¿qué % de riesgosos detecta?)
-
-**Threshold óptimo:** 0.5059 (calculado dinámicamente usando Youden's J statistic)
+- Completes the **9 constant columns** (which are removed later but must be present)
+- Fills optional fields with default values or `None`
+- Orders columns in the correct order of the original dataset
+- Ensures the DataFrame has exactly 53 columns before preprocessing
 
 ---
 
-## 💾 Formato de Archivos: Joblib
+### **Model** (`models/production/model.joblib`)
 
-**¿Por qué usamos `.joblib` en vez de `.pkl`?**
+**Models available for training:**
 
-- ✅ Especializado para modelos sklearn y arrays NumPy
-- ✅ Más eficiente con objetos grandes
-- ✅ Usado por defecto en sklearn
-- ✅ Mejor compatibilidad entre versiones
+- **Gradient Boosting** (sklearn): Gradient boosting baseline
+- **XGBoost**: Optimized gradient boosting, very popular in credit risk
+- **LightGBM**: Fast and efficient gradient boosting
+- **CatBoost**: Gradient boosting with automatic categorical handling
+- **Logistic Regression**: Balanced linear model
+- **HistGradientBoostingClassifier**: Optimized gradient boosting from sklearn
 
-**Archivos guardados:**
+**Model selection:**
 
-- `model.joblib`: Modelo entrenado (Gradient Boosting)
-- `preprocessor.joblib`: Pipeline de preprocessing completo
-- Ambos archivos son portables y pueden compartirse con otros desarrolladores
+- All models are compared using **Cross-Validation (5 folds)**
+- Best model is selected by **PR-AUC** (Precision-Recall AUC) in CV
+- Best model is trained on the complete training set
 
----
-
-## 📊 Estado Actual y Mejoras Aplicadas
-
-### **Rendimiento del Modelo**
-
-El modelo mejoró significativamente con las optimizaciones aplicadas:
-
-| Métrica     | Antes | Ahora | Mejora         |
-| ----------- | ----- | ----- | -------------- |
-| **Recall**  | 0.08  | 0.58  | **7x mejor**   |
-| **F1**      | 0.13  | 0.44  | **3.4x mejor** |
-| **ROC-AUC** | 0.63  | 0.64  | Estable        |
-
-### **Optimizaciones Implementadas**
-
-1. ✅ **Threshold óptimo calculado dinámicamente** (se calcula automáticamente para cada modelo)
-2. ✅ **Balanceo de clases** en todos los modelos
-3. ✅ **17 nuevas features** de feature engineering
-4. ✅ **6 indicadores de missing** para capturar información faltante
-5. ✅ **Hiperparámetros optimizados** (más árboles, profundidad controlada)
-6. ✅ **UI mejorada** con selectboxes descriptivos y opciones realistas
-7. ✅ **Campos opcionales manejan `None`** correctamente (no `0`)
+**Optimal threshold:** Calculated on the validation set by maximizing **F1-score**. This threshold is saved and used in production to make approval/rejection decisions.
 
 ---
 
-## 🚀 Guía de Inicio Rápido
+## File Format: Joblib
 
-### **Para alguien que descarga el proyecto por primera vez**
+**Why do we use `.joblib` instead of `.pkl`?**
 
-Esta guía te ayudará a configurar el dataset, levantar Docker, entrenar el modelo y probarlo.
+- Specialized for sklearn models and NumPy arrays
+- More efficient with large objects
+- Used by default in sklearn
+- Better compatibility between versions
+
+**Saved files:**
+
+- `models/production/model.joblib`: Bundle with complete pipeline + model + threshold + metadata
+- `models/preprocessor/preprocessor.joblib`: Preprocessing pipeline (may be embedded in bundle or separate)
+- `models/production/optimal_threshold.txt`: Calculated optimal threshold
+- `models/production/metrics.txt`: Performance metrics in text
+- `models/production/metrics_cv.json`: Cross-validation metrics in JSON
+- `models/production/val_metrics.json`: Validation metrics
+- `models/training_history/training_history_*.json`: Complete history of each training
+- `models/production/curves/`: ROC, CAP, PD distribution plots
+- `models/production/calibration_table_*.csv`: Calibration tables
+- `models/production/discriminatory_stats_*.csv`: Discriminatory statistics
+
+All files are portable and can be shared with other developers.
 
 ---
 
-### **Prerequisitos**
+## Quick Start Guide
 
-1. **Docker y Docker Compose** instalados y funcionando
-2. **Datos del dataset** listos para colocar en `data/raw/`
+### **For someone downloading the project for the first time**
+
+This guide will help you set up the dataset, start Docker, train the model, and test it.
 
 ---
 
-### **Paso 1: Preparar el Dataset**
+### **Prerequisites**
 
-Asegúrate de tener los archivos del dataset en la carpeta `data/raw/`:
+1. **Docker and Docker Compose** installed and working
+2. **Dataset files** ready to place in `data/raw/`
+
+---
+
+### **Step 1: Prepare the Dataset**
+
+Make sure you have the dataset files in the `data/raw/` folder:
 
 ```bash
 data/raw/
@@ -232,80 +245,91 @@ data/raw/
   └── PAKDD2010_VariablesList.XLS
 ```
 
-**Importante:** Los archivos deben estar en esta ubicación antes de entrenar el modelo.
+**Important:** Files must be in this location before training the model.
 
 ---
 
-### **Paso 2: Levantar el Sistema con Docker**
+### **Step 2: Start the System with Docker**
 
-Construye y levanta todos los servicios (UI, API y Model):
+Build and start all services (UI, API and Model):
 
 ```bash
-# Primera vez (construye las imágenes)
+# First time (builds the images)
 docker-compose up --build
 
-# Siguientes veces (más rápido, usa imágenes existentes)
+# Subsequent times (faster, uses existing images)
 docker-compose up
 ```
 
-**¿Qué hace esto?**
+**What does this do?**
 
-- ✅ Construye las imágenes Docker para UI, API y Model
-- ✅ Levanta los 3 servicios en contenedores separados
-- ✅ Configura la red interna entre servicios
-- ✅ Monta los volúmenes necesarios (datos, modelos, etc.)
+- Builds Docker images for UI, API and Model
+- Starts the 3 services in separate containers
+- Configures internal network between services
+- Mounts necessary volumes (data, models, etc.)
 
-**Servicios disponibles:**
+**Available services:**
 
-- 🌐 **UI:** http://localhost:8501 (Streamlit)
-- 🔌 **API:** http://localhost:8000 (FastAPI)
-- 📊 **API Docs:** http://localhost:8000/docs (Swagger UI)
+- **UI:** http://localhost:8501 (Streamlit)
+- **API:** http://localhost:8000 (FastAPI)
+- **API Docs:** http://localhost:8000/docs (Swagger UI)
 
-**Nota:** La primera vez puede tardar varios minutos en descargar e instalar dependencias.
+**Note:** The first time may take several minutes to download and install dependencies.
 
 ---
 
-### **Paso 3: Entrenar el Modelo**
+### **Step 3: Train the Model**
 
-Con Docker levantado, ejecuta el entrenamiento dentro del contenedor de la API (que tiene acceso a todos los datos):
+With Docker running, execute training inside the API container (which has access to all data):
 
 ```bash
-# Ejecutar entrenamiento dentro del contenedor API
-docker-compose exec api python -m src.train_model
+# Execute training inside API container
+docker-compose exec api python -m src.modeling.train_eval
 ```
 
-**O si prefieres entrenar localmente** (con Python instalado en tu máquina):
+**Or if you prefer to train locally** (with Python installed on your machine):
 
 ```bash
-# Instalar dependencias localmente (solo si no usas Docker)
+# Install dependencies locally (only if not using Docker)
 pip install -r requirements.txt
 
-# Ejecutar entrenamiento
-python -m src.train_model
+# Execute training
+python -m src.modeling.train_eval
 ```
 
-**¿Qué hace este comando?**
+**What does this command do?**
 
-1. ✅ Carga el dataset desde `data/raw/`
-2. ✅ Ejecuta el preprocessing completo (6 pasos)
-3. ✅ Entrena 3 modelos (Logistic Regression, Random Forest, Gradient Boosting)
-4. ✅ Evalúa y selecciona el mejor modelo
-5. ✅ Calcula el threshold óptimo
-6. ✅ Guarda todo en:
-   - `models/production/model.joblib`
-   - `models/preprocessor/preprocessor.joblib` (nueva ubicación)
+1. Loads dataset from `data/raw/PAKDD2010_Modeling_Data.txt`
+2. Splits into Train/Validation/Test (70% / 15% / 15%)
+3. Executes Cross-Validation (5 folds) to compare models
+4. Trains multiple models (Gradient Boosting, XGBoost, LightGBM, CatBoost, Logistic Regression, HistGBM)
+5. Selects best model by PR-AUC in CV
+6. Trains best model on complete train set
+7. Evaluates on validation and calculates optimal threshold (F1 maximization)
+8. Informatively evaluates on test (not used for selection)
+9. Saves everything in:
+   - `models/production/model.joblib` (complete bundle)
+   - `models/preprocessor/preprocessor.joblib` (pipeline)
    - `models/production/optimal_threshold.txt`
    - `models/production/metrics.txt`
+   - `models/production/metrics_cv.json`
+   - `models/production/val_metrics.json`
+   - `models/training_history/training_history_*.json`
+   - `models/production/curves/` (plots)
+   - `models/production/calibration_table_*.csv`
+   - `models/production/discriminatory_stats_*.csv`
 
-**Tiempo estimado:** 1-3 minutos (depende del hardware)
+**Estimated time:** 5-15 minutes (depends on hardware and number of models)
 
-**Al finalizar verás:**
+**When finished you will see:**
 
-- Métricas de cada modelo
-- Modelo seleccionado como mejor
-- Confirmación de archivos guardados
+- Cross-Validation metrics for each model
+- Selected best model
+- Metrics on train, validation and test
+- Calculated optimal threshold
+- Confirmation of saved files
 
-**Importante:** Después de entrenar, reinicia el servicio API para que cargue el nuevo modelo:
+**Important:** After training, restart the API service to load the new model:
 
 ```bash
 docker-compose restart api
@@ -313,19 +337,19 @@ docker-compose restart api
 
 ---
 
-### **Paso 4: Probar el Sistema con la UI**
+### **Step 4: Test the System with the UI**
 
-#### **Opción A: Usar la UI (Recomendado)**
+#### **Option A: Use the UI (Recommended)**
 
-1. Abre tu navegador en: **http://localhost:8501**
-2. Completa el formulario con los datos de un cliente
-3. Haz clic en "Evaluar Riesgo Crediticio"
-4. Verás el resultado: **APROBADO** o **RECHAZADO** con la probabilidad
+1. Open your browser at: **http://localhost:8501**
+2. Complete the form with customer data
+3. Click "Evaluate Credit Risk"
+4. You will see the result: **APPROVED** or **REJECTED** with the probability
 
-#### **Opción B: Usar la API directamente**
+#### **Option B: Use the API directly**
 
 ```bash
-# Ejemplo de request usando curl
+# Example request using curl
 curl -X POST "http://localhost:8000/predict" \
   -H "Content-Type: application/json" \
   -d '{
@@ -341,7 +365,7 @@ curl -X POST "http://localhost:8000/predict" \
   }'
 ```
 
-**Respuesta esperada:**
+**Expected response:**
 
 ```json
 {
@@ -351,90 +375,91 @@ curl -X POST "http://localhost:8000/predict" \
 }
 ```
 
-#### **Opción C: Usar la documentación interactiva**
+#### **Option C: Use interactive documentation**
 
-1. Abre: **http://localhost:8000/docs**
-2. Expande el endpoint `/predict`
-3. Haz clic en "Try it out"
-4. Completa el JSON de ejemplo
-5. Haz clic en "Execute"
-6. Verás la respuesta directamente en el navegador
+1. Open: **http://localhost:8000/docs**
+2. Expand the `/predict` endpoint
+3. Click "Try it out"
+4. Complete the example JSON
+5. Click "Execute"
+6. You will see the response directly in the browser
 
 ---
 
-### **Comandos Útiles**
+### **Useful Commands**
 
 ```bash
-# Ver logs de todos los servicios
+# View logs from all services
 docker-compose logs -f
 
-# Ver logs de un servicio específico
+# View logs from a specific service
 docker-compose logs -f api
 docker-compose logs -f ui
 
-# Detener servicios
+# Stop services
 docker-compose down
 
-# Detener y eliminar volúmenes (limpia todo)
+# Stop and remove volumes (cleans everything)
 docker-compose down -v
 
-# Reconstruir un servicio específico
+# Rebuild a specific service
 docker-compose build --no-cache api
 docker-compose up api
 ```
 
 ---
 
-### **Verificar que Todo Funciona**
+### **Verify Everything Works**
 
-1. ✅ **API health check:**
+1. **API health check:**
 
    ```bash
    curl http://localhost:8000/health
    ```
 
-   Debe retornar: `{"status":"ok","model_loaded":true,"preprocessor_loaded":true}`
+   Should return: `{"status":"ok","model_loaded":true,"preprocessor_loaded":true}`
 
-2. ✅ **API model info:**
+2. **API model info:**
 
    ```bash
    curl http://localhost:8000/model_info
    ```
 
-   Debe mostrar información del modelo cargado
+   Should show information about the loaded model
 
-3. ✅ **UI carga correctamente:** http://localhost:8501 muestra el formulario
-
----
-
-### **Solucionar Problemas Comunes**
-
-**Problema:** `FileNotFoundError: data/raw/PAKDD2010_Modeling_Data.txt`
-
-- **Solución:** Verifica que los archivos del dataset estén en `data/raw/`
-
-**Problema:** `Model or preprocessor not loaded`
-
-- **Solución:** Asegúrate de haber ejecutado `python -m src.train_model` primero
-
-**Problema:** API retorna error 500
-
-- **Solución:** Revisa los logs: `docker-compose logs api`
-- Verifica que `scikit-learn==1.6.1` esté instalado (versión debe coincidir)
-
-**Problema:** UI muestra error al cargar `ui_options.json`
-
-- **Solución:** Verifica que el archivo `src/ui/ui_options.json` exista. Si falta, la UI funcionará igual pero con opciones limitadas.
+3. **UI loads correctly:** http://localhost:8501 shows the form
 
 ---
 
-## 📝 Resumen del Flujo Completo
+### **Troubleshooting Common Problems**
+
+**Problem:** `FileNotFoundError: data/raw/PAKDD2010_Modeling_Data.txt`
+
+- **Solution:** Verify that dataset files are in `data/raw/`
+
+**Problem:** `Model or preprocessor not loaded`
+
+- **Solution:** Make sure you have executed `python -m src.modeling.train_eval` first and then restart the API with `docker-compose restart api`
+
+**Problem:** API returns error 500
+
+- **Solution:** Check logs: `docker-compose logs api`
+- Verify that `scikit-learn==1.6.1` is installed (version must match)
+- Verify that the model is saved in `models/production/model.joblib`
+- Verify that the preprocessor is in `models/preprocessor/preprocessor.joblib`
+
+**Problem:** UI shows error loading `ui_options.json`
+
+- **Solution:** Verify that the file `src/ui/ui_options.json` exists. If missing, the UI will work the same but with limited options.
+
+## Complete Flow Summary
 
 ```
-1. Preparar dataset → data/raw/
-2. Levantar Docker → docker-compose up --build
-3. Entrenar modelo → docker-compose exec api python -m src.train_model
-4. Probar sistema → http://localhost:8501
+1. Prepare dataset → data/raw/
+2. Start Docker → docker-compose up --build
+3. Train model → docker-compose exec api python -m src.modeling.train_eval
+4. Restart API → docker-compose restart api
+5. Test system → http://localhost:8501
 ```
 
-¡Listo! Ya tienes el sistema completo funcionando. 🎉
+Ready! You now have the complete system working.

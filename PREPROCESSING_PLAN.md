@@ -1,14 +1,14 @@
-# 📊 Preprocessing Implementado - Documentación Completa
+# Implemented Preprocessing - Complete Documentation
 
-## 🎯 Objetivo
+## Objective
 
-Este documento describe **exactamente cómo está implementado** el pipeline de preprocessing en el código actual (`src/preprocessing.py`).
+This document describes **exactly how the preprocessing pipeline is implemented** in the current code (`src/preprocessing.py`).
 
-El pipeline procesa los datos en **6 pasos secuenciales**, transformando 53 columnas originales en ~117 features finales normalizadas.
+The pipeline processes data in **7 sequential steps**, transforming original columns into normalized final features ready for the model. It uses a `sklearn.Pipeline` with custom transformers and a `ColumnTransformer` to handle numeric and categorical features separately.
 
 ---
 
-## 📋 Estructura del Dataset (54 columnas)
+## Dataset Structure (54 columns)
 
 ### Variables con Descripción Completa:
 
@@ -354,735 +354,301 @@ El pipeline procesa los datos en **6 pasos secuenciales**, transformando 53 colu
 
 ---
 
-## 🔧 Feature Engineering Implementado
+## Implemented Feature Engineering
 
-El pipeline crea **17 nuevas features** agrupadas en 7 categorías:
+The pipeline creates **11 new features** grouped into 5 categories:
 
-### 1. **Features Financieras Combinadas** (5 features)
+### 1. **Financial Features** (3 features)
 
-```python
-# Ingreso total mensual
-TOTAL_MONTHLY_INCOME = PERSONAL_MONTHLY_INCOME + OTHER_INCOMES
+- **INCOME_TOTAL**: Sum of personal and other monthly income
+- **INCOME_RATIO**: Ratio of other income to main income (uses a very small value to avoid division by zero)
+- **HAS_OTHER_INCOME**: Binary flag indicating if the person has other income besides the main one
 
-# Ratio ingreso/activos
-INCOME_TO_ASSETS_RATIO = PERSONAL_MONTHLY_INCOME / (PERSONAL_ASSETS_VALUE + 1)
+### 2. **Stability Features** (3 features)
 
-# Ingreso por dependiente
-INCOME_PER_DEPENDANT = TOTAL_MONTHLY_INCOME / (QUANT_DEPENDANTS + 1)
+- **YEARS_IN_RESIDENCE**: Conversion of months in residence to years (divides by 12)
+- **YEARS_IN_JOB**: Conversion of months in job to years (divides by 12)
+- **STABILITY_SCORE**: Sum of years in residence and years in job (indicates overall applicant stability)
 
-# Ratio de otros ingresos sobre ingreso principal
-INCOME_RATIO = OTHER_INCOMES / (PERSONAL_MONTHLY_INCOME + 1e-6)
+### 3. **Card Features** (2 features)
 
-# Activos por dependiente
-ASSETS_PER_DEPENDANT = PERSONAL_ASSETS_VALUE / (QUANT_DEPENDANTS + 1)
-```
+- **CARDS_COUNT**: Total credit cards owned (sum of all card flags: Visa, Mastercard, Diners, American Express, Others)
+- **HAS_ANY_CARD**: Binary flag indicating if they have at least one credit card
 
-**Nota:** Se usa `+1` o `+1e-6` para evitar división por cero.
+### 4. **Documentation Features** (1 feature)
 
-### 2. **Features de Estabilidad** (3 features)
+- **DOCS_COUNT**: Total documents provided (sum of document flags: address, RG, CPF, income proof)
 
-```python
-# Años en residencia (conversión de meses)
-YEARS_IN_RESIDENCE = MONTHS_IN_RESIDENCE / 12
+### 5. **Cyclical Features** (2 features)
 
-# Años en trabajo (conversión de meses)
-YEARS_IN_JOB = MONTHS_IN_THE_JOB / 12
+- **PAYMENT_DAY_SIN**: Cyclical encoding of payment day using sine
+- **PAYMENT_DAY_COS**: Cyclical encoding of payment day using cosine
 
-# Score de estabilidad general (promedio normalizado)
-STABILITY_SCORE = (MONTHS_IN_RESIDENCE + MONTHS_IN_THE_JOB) / 24
-```
+**Reason:** Cyclical encoding allows the model to understand that day 31 and day 1 are temporally close, which is important for capturing temporal patterns.
 
-**Nota:** `STABILITY_SCORE` usa `.fillna(0)` antes de sumar para manejar missing values.
+### 6. **Missing Values Features (Indicators)** (6 features)
 
-### 3. **Features de Contacto/Documentación** (2 features)
+Binary features (0/1) are created that indicate if an important variable has missing values:
 
-```python
-# Total de métodos de contacto disponibles
-# NOTA: FLAG_MOBILE_PHONE se elimina (constante), solo usamos FLAG_RESIDENCIAL_PHONE y FLAG_EMAIL
-CONTACT_METHODS_COUNT = (
-    (FLAG_RESIDENCIAL_PHONE == "Y").astype(int).fillna(0) +
-    FLAG_EMAIL.fillna(0)
-)
+- **MISSING_PROFESSION_CODE**: Indicates if profession code is missing
+- **MISSING_MONTHS_IN_RESIDENCE**: Indicates if time in residence is missing
+- **MISSING_MATE_PROFESSION_CODE**: Indicates if spouse profession code is missing
+- **MISSING_MATE_EDUCATION_LEVEL**: Indicates if spouse education level is missing
+- **MISSING_RESIDENCE_TYPE**: Indicates if residence type is missing
+- **MISSING_OCCUPATION_TYPE**: Indicates if occupation type is missing
 
-# NOTA: DOCUMENTS_COUNT fue removido (usaba columnas constantes: FLAG_HOME_ADDRESS_DOCUMENT, FLAG_RG, FLAG_CPF, FLAG_INCOME_PROOF)
-```
+**Reason:** Missing can be informative. For example, if `PROFESSION_CODE` is missing, it may indicate that the person does not have formal employment, which is relevant for credit risk.
 
-### 4. **Features de Tarjetas** (2 features)
-
-```python
-# Total de tarjetas (principales + adicionales)
-TOTAL_CARDS = (
-    FLAG_VISA.fillna(0) +
-    FLAG_MASTERCARD.fillna(0) +
-    FLAG_DINERS.fillna(0) +
-    FLAG_AMERICAN_EXPRESS.fillna(0) +
-    FLAG_OTHER_CARDS.fillna(0)
-)
-# NOTA: QUANT_ADDITIONAL_CARDS se elimina (constante 0), no se usa
-
-# Tiene tarjetas principales (Visa o Mastercard)
-HAS_MAJOR_CARDS = (FLAG_VISA.fillna(0) + FLAG_MASTERCARD.fillna(0) > 0).astype(int)
-```
-
-### 5. **Features Geográficas** (3 features)
-
-```python
-# Mismo estado residencia y trabajo
-SAME_STATE_RES_PROF = (RESIDENCIAL_STATE == PROFESSIONAL_STATE).astype(int)
-
-# Mismo código postal residencia y trabajo
-SAME_ZIP_RES_PROF = (RESIDENCIAL_ZIP_3 == PROFESSIONAL_ZIP_3).astype(int)
-
-# Nació en el mismo estado donde reside
-BORN_IN_RESIDENCE_STATE = (STATE_OF_BIRTH == RESIDENCIAL_STATE).astype(int)
-```
-
-**Nota:** `SAME_CITY_RES_PROF` fue removida porque `PROFESSIONAL_CITY` fue eliminada del dataset (alta cardinalidad + muchos missing).
-
-### 6. **Features de Cuentas Bancarias** (2 features)
-
-```python
-# Total de cuentas bancarias
-TOTAL_BANKING_ACCOUNTS = (
-    QUANT_BANKING_ACCOUNTS.fillna(0) +
-    QUANT_SPECIAL_BANKING_ACCOUNTS.fillna(0)
-)
-
-# Tiene cuentas bancarias especiales
-HAS_SPECIAL_ACCOUNTS = (QUANT_SPECIAL_BANKING_ACCOUNTS > 0).astype(int)
-```
-
-### 7. **Features de Edad** (2 features)
-
-```python
-# Edad al cuadrado (para capturar relaciones no lineales)
-AGE_SQUARED = AGE ** 2
-
-# Grupos de edad (se crea después de imputar AGE en paso 4)
-AGE_GROUP = pd.cut(
-    AGE,
-    bins=[0, 30, 40, 50, 60, 100],
-    labels=["<30", "30-40", "40-50", "50-60", "60+"]
-)
-# Se convierte a string para encoding
-```
-
-**Nota:** `AGE_GROUP` se crea en el **Paso 4** (después de imputar missing values de AGE), pero se documenta aquí porque es parte del feature engineering.
-
-### 6. **Features de Missing Values (Indicadores)** (6 features)
-
-Se crean **binarias** (0/1) indicando si la variable original tiene missing:
-
-```python
-# Indicadores de missing para variables importantes
-MISSING_PROFESSION_CODE
-MISSING_MONTHS_IN_RESIDENCE
-MISSING_MATE_PROFESSION_CODE
-MISSING_MATE_EDUCATION_LEVEL
-MISSING_RESIDENCE_TYPE
-MISSING_OCCUPATION_TYPE
-```
-
-**Nota:** `MISSING_PROFESSIONAL_CITY` y `MISSING_PROFESSIONAL_BOROUGH` fueron removidos porque estas columnas fueron eliminadas en el Paso 1 (alta cardinalidad + muchos missing).
-
-**Total de features creadas:** 17 nuevas features + 6 indicadores de missing = **23 nuevas columnas**
-
-**Nota:** Algunas features propuestas originalmente fueron removidas porque usaban columnas que se eliminan como constantes (DOCUMENTS_COUNT) o columnas que no existen (QUANT_ADDITIONAL_CARDS en TOTAL_CARDS).
+**Total features created:** 11 new features + 6 missing indicators = **17 new columns**
 
 ---
 
-## 🔄 Pipeline de Preprocessing - Implementación Actual
+## Preprocessing Pipeline - Current Implementation
 
-El pipeline se ejecuta en **6 pasos secuenciales**:
+The pipeline executes in **7 sequential steps** using a `sklearn.Pipeline` with custom transformers:
 
-### **Paso 1: Limpieza Inicial** (`_step1_initial_cleaning`)
+### **Step 1: NULL String Cleaning**
 
-#### **1.1. Remover ID_CLIENT**
+**What is done:** Converts placeholders like "NULL", "NULL.1", "NULL.2", etc. and empty strings to real NaN values.
 
-```python
-if ID_COL in df.columns:
-    df = df.drop(columns=[ID_COL])
-```
+**How it is done:** All text columns are identified and patterns matching "NULL" (with or without numeric suffixes) are searched. These values are converted to NaN, as well as empty strings.
 
-- Se remueve la columna `ID_CLIENT` (identificador único, no útil para modelado)
-
-#### **1.2. Normalizar Columnas Y/N**
-
-**Antes** de detectar columnas constantes, se normalizan estas columnas:
-
-- `FLAG_RESIDENCIAL_PHONE`: Y/y/1→"Y", N/n/0→"N", mantener NaN
-- `FLAG_MOBILE_PHONE`: Y/y/1→"Y", N/n/0→"N", mantener NaN
-- `COMPANY`: Y/y/1→"Y", N/n/0→"N", mantener NaN
-- `FLAG_PROFESSIONAL_PHONE`: Y/y/1→"Y", N/n/0→"N", mantener NaN
-- `FLAG_ACSP_RECORD`: Y/y/1→"Y", N/n/0→"N", mantener NaN
-
-```python
-df[col] = df[col].replace({"Y": "Y", "y": "Y", "N": "N", "n": "N", 1: "Y", 0: "N"})
-df[col] = df[col].astype(object)  # Mantener como object para preservar NaN
-```
-
-**Razón:** Se normalizan a "Y"/"N" pero se mantienen como strings para preservar NaN como categoría distinta en el encoding posterior (Paso 5). Esto permite que el modelo aprenda de la ausencia de información.
-
-#### **1.3. Identificar y Remover Columnas Constantes y Alta Cardinalidad + Muchos Missing**
-
-**Solo en entrenamiento** (cuando `self.is_fitted == False`):
-
-```python
-# Detectar constantes:
-# - Columnas con nunique(dropna=True) == 0 (todas NaN)
-# - Columnas con nunique(dropna=True) == 1 (un solo valor único)
-# - Columnas numéricas con std() == 0 (sin varianza)
-constant_cols = [col for col in df.columns if ...]
-self.constant_columns_removed = constant_cols  # Guardar para aplicar después
-
-# Remover columnas de alta cardinalidad con muchos missing
-high_card_missing_cols = [col for col in HIGH_CARDINALITY_MANY_MISSING_COLS if col in df.columns]
-self.high_cardinality_many_missing_removed = high_card_missing_cols
-```
-
-**Resultado típico:** Se remueven:
-
-- **9 columnas constantes** identificadas en el EDA:
-  - `CLERK_TYPE` (todos "C")
-  - `QUANT_ADDITIONAL_CARDS` (todos 1)
-  - `EDUCATION_LEVEL` (todos 1)
-  - `FLAG_MOBILE_PHONE` (todos "N")
-  - `FLAG_HOME_ADDRESS_DOCUMENT` (todos 0)
-  - `FLAG_RG` (todos 0)
-  - `FLAG_CPF` (todos 0)
-  - `FLAG_INCOME_PROOF` (todos 0)
-  - `FLAG_ACSP_RECORD` (todos "N")
-- **2 columnas de alta cardinalidad + muchos missing:**
-  - `PROFESSIONAL_CITY` (2,236 categorías, 67.6% missing)
-  - `PROFESSIONAL_BOROUGH` (5,057 categorías, 67.6% missing)
-
-**En producción:** Se usa la lista guardada `self.constant_columns_removed` y `self.high_cardinality_many_missing_removed` para remover las mismas columnas.
-
-**Resultado:** De 53 columnas → **42 columnas** (después de remover 9 constantes + 2 alta cardinalidad + 1 ID)
+**Why it is done:** The original dataset uses "NULL" as a placeholder for missing values, but for processing we need real NaN values that can be correctly handled by imputers.
 
 ---
 
-### **Paso 2: Manejo de Outliers** (`_step2_handle_outliers`)
+### **Step 2: Column Removal**
 
-#### **No se aplica Winsorization**
+**What is done:** Columns that are not useful for the model are removed.
 
-**Decisión:** Basado en el EDA, el porcentaje de outliers es bajo (~2% máximo) y los valores extremos son **informativos para credit risk**. Por ejemplo, un ingreso muy alto o muy bajo puede ser una señal importante para el modelo.
+**Removed columns:**
 
-**Proceso:**
+- **ID_CLIENT**: Unique identifier, does not provide information to predict risk
+- **CITY_OF_BIRTH**: High cardinality (9,910 different categories)
+- **RESIDENCIAL_CITY**: High cardinality (3,529 categories)
+- **RESIDENCIAL_BOROUGH**: High cardinality (14,511 categories)
+- **PROFESSIONAL_CITY**: High cardinality (2,236 categories) and many missing values (67.6%)
+- **PROFESSIONAL_BOROUGH**: High cardinality (5,057 categories) and many missing values (67.6%)
 
-```python
-# Simplemente retorna una copia del DataFrame sin modificar
-return df.copy()
-```
-
-**Razón:** Los outliers en variables financieras (ingresos, activos) y demográficas (edad) pueden contener información valiosa sobre el perfil de riesgo del solicitante. El modelo puede aprender de estos valores extremos.
-
----
-
-### **Paso 3: Feature Engineering** (`_step3_feature_engineering`)
-
-#### **Crear 19 nuevas features** (descritas arriba en sección "Feature Engineering Implementado")
-
-**Orden de creación:**
-
-1. Features financieras (5)
-2. Features de estabilidad (3)
-3. Features de contacto/documentación (2)
-4. Features de tarjetas (2)
-5. Features geográficas (4)
-6. Features de cuentas bancarias (2)
-7. Features de edad (1: AGE_SQUARED; AGE_GROUP se crea en Paso 4)
-
-**Resultado:** De 42 columnas → **59 columnas** (42 originales + 17 nuevas)
-
-**Nota:** Los indicadores de missing (6) se crean en el Paso 4, no aquí.
+**Why it is done:** High cardinality geographic columns do not provide useful information and create dimensionality problems. Lower cardinality columns like states or postal codes are preferred as they are more informative and manageable.
 
 ---
 
-### **Paso 4: Manejo de Missing Values** (`_step4_missing_values`)
+### **Step 3: Constant Column Removal**
 
-#### **4.1. Crear Indicadores de Missing**
+**What is done:** Columns that have all equal values (no variance) are automatically detected and removed.
 
-**Antes** de imputar, se crean 6 indicadores binarios (0/1):
+**How it is done:** The number of unique values in each column is checked. If a column has only one unique value (or all are NaN), it is removed.
 
-```python
-for col in MISSING_INDICATOR_COLS:
-    indicator_col = f"MISSING_{col}"
-    df[indicator_col] = df[col].isna().astype(int)
-```
+**Typically removed columns:**
 
-**Variables con indicadores:**
+- **CLERK_TYPE**: All values are "C"
+- **QUANT_ADDITIONAL_CARDS**: All values are 0 or 1
+- **EDUCATION_LEVEL**: All values are 0 or 1
+- **FLAG_MOBILE_PHONE**: All values are "N"
+- **FLAG_HOME_ADDRESS_DOCUMENT**: All values are 0
+- **FLAG_RG**: All values are 0
+- **FLAG_CPF**: All values are 0
+- **FLAG_INCOME_PROOF**: All values are 0
+- **FLAG_ACSP_RECORD**: All values are "N"
 
-- `MISSING_PROFESSION_CODE`
-- `MISSING_MONTHS_IN_RESIDENCE`
-- `MISSING_MATE_PROFESSION_CODE`
-- `MISSING_MATE_EDUCATION_LEVEL`
-- `MISSING_RESIDENCE_TYPE`
-- `MISSING_OCCUPATION_TYPE`
-
-**Nota:** `MISSING_PROFESSIONAL_CITY` y `MISSING_PROFESSIONAL_BOROUGH` no se crean porque estas columnas fueron removidas en el Paso 1.
-
-**Resultado:** De 59 columnas → **65 columnas** (59 + 6 indicadores)
-
-#### **4.2. Separar Columnas Categóricas y Numéricas**
-
-**Solo en entrenamiento:**
-
-```python
-self.categorical_columns = df.select_dtypes(include=["object", "category"]).columns.tolist()
-self.numeric_columns = df.select_dtypes(include=["number"]).columns.tolist()
-```
-
-#### **4.3. Imputar Categóricas con Moda**
-
-**Exclusiones importantes:**
-
-Las siguientes columnas se **excluyen** de la imputación categórica para preservar NaN como categoría distinta en encoding:
-
-- **Columnas Y/N:** `FLAG_RESIDENCIAL_PHONE`, `FLAG_MOBILE_PHONE`, `COMPANY`, `FLAG_PROFESSIONAL_PHONE`, `FLAG_ACSP_RECORD`
-- **Columnas binarias:** Cualquier columna con exactamente 2 valores únicos (excluyendo Y/N)
-- **Columnas de alta cardinalidad (>100 categorías):** `CITY_OF_BIRTH`, `RESIDENCIAL_CITY`, `RESIDENCIAL_BOROUGH`, `RESIDENCIAL_ZIP_3`, `PROFESSIONAL_ZIP_3`, `RESIDENCIAL_PHONE_AREA_CODE`, `PROFESSIONAL_PHONE_AREA_CODE`
-
-**Proceso:**
-
-```python
-# Identificar columnas a excluir
-cols_to_exclude = yn_cols + binary_cols + high_cardinality_cols
-self.categorical_columns = [col for col in all_categorical_columns if col not in cols_to_exclude]
-
-# Imputar solo las columnas categóricas restantes
-self.categorical_imputer = SimpleImputer(strategy="most_frequent")
-df[self.categorical_columns] = self.categorical_imputer.transform(df[self.categorical_columns])
-```
-
-**Estrategia:** `most_frequent` (moda) - valor más común para cada columna.
-
-**Razón de exclusión:** Preservar NaN permite que el modelo aprenda de la ausencia de información. En Frequency Encoding, los NaN se convierten en "MISSING" con frecuencia baja, lo cual es informativo.
-
-#### **4.4. Imputar Numéricas con Mediana**
-
-```python
-self.numeric_imputer = SimpleImputer(strategy="median")
-# Se ajusta solo con datos de entrenamiento
-df[self.numeric_columns] = self.numeric_imputer.transform(df[self.numeric_columns])
-```
-
-**Estrategia:** `median` (mediana) - valor central para cada columna numérica.
-
-#### **4.5. Crear AGE_GROUP**
-
-**Después** de imputar AGE:
-
-```python
-df["AGE_GROUP"] = pd.cut(
-    df["AGE"],
-    bins=[0, 30, 40, 50, 60, 100],
-    labels=["<30", "30-40", "40-50", "50-60", "60+"]
-)
-df["AGE_GROUP"] = df["AGE_GROUP"].astype(str)  # Convertir a string para encoding
-```
-
-**Resultado:** De 65 columnas → **66 columnas** (65 + 1 AGE_GROUP)
+**Why it is done:** Constant columns do not provide information to the model because there is no variability that the model can learn. Additionally, they can cause numerical problems in some algorithms.
 
 ---
 
-### **Paso 5: Encoding** (`_step5_encoding`)
+### **Step 4: Missing Indicators**
 
-#### **5.1. Identificar Tipos de Columnas Categóricas**
+**What is done:** New binary features (0 or 1) are created that indicate if an important variable has missing values.
 
-**Solo en entrenamiento**, se clasifican las categóricas:
+**Variables with created indicators:**
 
-```python
-# Y/N: columnas especiales que preservan NaN
-yn_cols_in_data = [col for col in YN_COLUMNS if col in df.columns]
+- **MISSING_PROFESSION_CODE**: Indicates if profession code is missing
+- **MISSING_MONTHS_IN_RESIDENCE**: Indicates if time in residence is missing
+- **MISSING_MATE_PROFESSION_CODE**: Indicates if spouse profession code is missing
+- **MISSING_MATE_EDUCATION_LEVEL**: Indicates if spouse education level is missing
+- **MISSING_RESIDENCE_TYPE**: Indicates if residence type is missing
+- **MISSING_OCCUPATION_TYPE**: Indicates if occupation type is missing
 
-# Binarias: exactamente 2 valores únicos (excluyendo Y/N)
-self.binary_cat_columns = [col for col in cat_cols
-                          if col not in yn_cols_in_data
-                          and df[col].nunique(dropna=True) == 2]
+**How it is done:** For each selected variable, a new column is created that equals 1 if the original variable has NaN, and 0 if it has a value.
 
-# Múltiples categorías: separar por cardinalidad
-multi_cat_columns = [col for col in cat_cols
-                     if col not in self.binary_cat_columns
-                     and col not in yn_cols_in_data]
-
-# Baja cardinalidad: ≤20 categorías (umbral configurable, default=20)
-low_card_cols = [col for col in multi_cat_columns
-                if df[col].nunique(dropna=True) <= self.low_cardinality_threshold]
-
-# Media cardinalidad: 21-100 categorías (agrupar poco frecuentes + OneHot)
-medium_card_cols = [col for col in multi_cat_columns
-                   if self.low_cardinality_threshold < df[col].nunique(dropna=True) <= GROUPING_THRESHOLD]
-
-# Alta cardinalidad: >100 categorías (Frequency Encoding)
-high_card_cols = [col for col in multi_cat_columns
-                 if df[col].nunique(dropna=True) > GROUPING_THRESHOLD]
-
-self.ohe_cat_columns = low_card_cols + medium_card_cols  # Ambas usan OneHot
-self.frequency_encoding_columns = high_card_cols
-```
-
-#### **5.2. Encoding de Binarias: OrdinalEncoder (preserva NaN)**
-
-```python
-# Convertir NaN a "MISSING" para preservarlo como categoría
-binary_df = df[binary_cols].copy().fillna("MISSING")
-
-self.binary_encoder = OrdinalEncoder(
-    handle_unknown="use_encoded_value",
-    unknown_value=-1
-)
-encoded_binary = self.binary_encoder.transform(binary_df)
-```
-
-**Resultado:** Binarias se convierten a números (0, 1, 2) donde 2 representa "MISSING" (1 columna → 1 columna)
-
-**Ejemplos:** `SEX` (M/F) → 0/1, `APPLICATION_SUBMISSION_TYPE` (Web/Carga) → 0/1
-
-#### **5.3. Encoding de Y/N: OrdinalEncoder (preserva NaN)**
-
-```python
-# Convertir NaN a "MISSING" para preservarlo como categoría
-yn_df = df[yn_cols_in_data].copy().fillna("MISSING")
-
-self.yn_encoder = OrdinalEncoder(
-    handle_unknown="use_encoded_value",
-    unknown_value=-1
-)
-encoded_yn = self.yn_encoder.transform(yn_df)
-```
-
-**Resultado:** Y/N se convierten a números (Y=0, N=1, MISSING=2) (1 columna → 1 columna)
-
-**Razón:** Preservar NaN como "MISSING" permite que el modelo aprenda de la ausencia de información.
-
-#### **5.4. Agrupación de Categorías Poco Frecuentes (Media Cardinalidad)**
-
-**Antes de aplicar OneHot**, se agrupan categorías con <10 ocurrencias en "OTROS":
-
-```python
-# Solo en entrenamiento
-for col in medium_card_cols:
-    value_counts = df[col].value_counts()
-    rare_categories = value_counts[value_counts < MIN_FREQUENCY_FOR_GROUPING].index.tolist()
-    if rare_categories:
-        self.rare_categories_map[col] = rare_categories  # Guardar para transformación
-        df[col] = df[col].replace(rare_categories, "OTROS")
-```
-
-**Resultado:** Reduce la cardinalidad efectiva antes de OneHot, evitando crear demasiadas columnas.
-
-**Ejemplo:** Si `PROFESSIONAL_PHONE_AREA_CODE` tiene 87 categorías pero 20 tienen <10 ocurrencias, se agrupan en "OTROS", quedando 68 categorías únicas.
-
-#### **5.5. Encoding de Baja y Media Cardinalidad: OneHotEncoder**
-
-```python
-self.ohe_encoder = OneHotEncoder(
-    handle_unknown="ignore",  # Si aparece categoría nueva, se ignora (todas las columnas = 0)
-    sparse_output=False
-)
-ohe_array = self.ohe_encoder.transform(df[ohe_cols])
-ohe_df = pd.DataFrame(ohe_array, columns=self.ohe_encoder.get_feature_names_out(ohe_cols))
-df = df.drop(columns=ohe_cols)  # Remover columnas originales
-df = pd.concat([df, ohe_df], axis=1)  # Agregar columnas one-hot
-```
-
-**Resultado:** 1 columna categórica → **N columnas binarias** (una por categoría)
-
-**Ejemplos:**
-
-- `SEX` (M, F) → `SEX_M` (0/1), `SEX_F` (0/1) = **2 columnas**
-- `RESIDENCE_TYPE` (1, 2, 3, 4, 5) → `RESIDENCE_TYPE_1`, `RESIDENCE_TYPE_2`, ..., `RESIDENCE_TYPE_5` = **5 columnas**
-- `PROFESSIONAL_PHONE_AREA_CODE` (después de agrupar) → ~68 columnas
-
-#### **5.6. Encoding de Alta Cardinalidad: Frequency Encoding**
-
-**Estrategia:** Codificar por frecuencia relativa (proporción de aparición) en lugar de orden arbitrario.
-
-```python
-# En entrenamiento: calcular frecuencias relativas
-for col in high_card_cols:
-    value_counts = df[col].value_counts()
-    total = len(df[col].dropna())
-    freq_map = (value_counts / total).to_dict()  # Categoría → frecuencia (0-1)
-
-    # Para NaN, usar frecuencia promedio de categorías raras
-    if pd.isna(df[col]).any():
-        rare_freq = value_counts[value_counts < MIN_FREQUENCY_FOR_GROUPING].sum() / total
-        freq_map["MISSING"] = rare_freq if rare_freq > 0 else 0.001
-
-    self.frequency_encoders[col] = freq_map
-
-# Aplicar encoding
-df[col] = df[col].fillna("MISSING").map(self.frequency_encoders[col])
-# Si hay categorías nuevas (unknown), usar frecuencia mínima
-if df[col].isna().any():
-    min_freq = min(self.frequency_encoders[col].values())
-    df[col] = df[col].fillna(min_freq)
-df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.001)
-```
-
-**Resultado:** Alta cardinalidad se convierte a valores numéricos continuos (0-1) basados en frecuencia (1 columna → 1 columna)
-
-**Ventajas:**
-
-- **No introduce orden artificial** (a diferencia de OrdinalEncoder)
-- **Captura la frecuencia** de cada categoría (más frecuente = valor más alto)
-- **Maneja NaN** como "MISSING" con frecuencia baja
-- **Maneja categorías nuevas** usando frecuencia mínima
-
-**Ejemplos:**
-
-- `CITY_OF_BIRTH` (9,910 categorías) → valores 0.0001-0.05 según frecuencia
-- `RESIDENCIAL_BOROUGH` (14,511 categorías) → valores 0.0001-0.03 según frecuencia
-- `RESIDENCIAL_CITY` (3,529 categorías) → valores 0.0001-0.08 según frecuencia
-
-**Resultado final:** Aproximadamente **~117 features** (varía según categorías únicas en cada columna)
+**Why it is done:** Missing can be informative. For example, if `PROFESSION_CODE` is missing, it may indicate that the person does not have formal employment, which is very relevant for evaluating credit risk. These indicators allow the model to learn from the absence of information.
 
 ---
 
-### **Paso 6: Escalado** (`_step6_scaling`)
+### **Step 5: Winsorization (Outlier Capping)**
 
-#### **MinMaxScaler para Todas las Columnas Numéricas**
+**What is done:** Extreme values (outliers) are limited using the 1% and 99% percentiles calculated on the training set.
 
-```python
-self.scaler = MinMaxScaler()
-numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
-# Remover TARGET_COL si existe
-df[numeric_cols] = self.scaler.transform(df[numeric_cols])
-```
+**Variables to which winsorization is applied:**
 
-**Resultado:**
+- **PERSONAL_MONTHLY_INCOME**: Personal income
+- **OTHER_INCOMES**: Other income
+- **PERSONAL_ASSETS_VALUE**: Asset value
+- **AGE**: Age
+- **MONTHS_IN_RESIDENCE**: Months in residence
+- **MONTHS_IN_THE_JOB**: Months in job
+- **PROFESSION_CODE**: Profession code
+- **MATE_PROFESSION_CODE**: Spouse profession code
+- **MARITAL_STATUS**: Marital status
+- **QUANT_DEPENDANTS**: Number of dependents
 
-- Todas las features numéricas se normalizan al rango **[0, 1]**
-- Fórmula: `(x - min) / (max - min)`
-- Se guardan `min_` y `max_` de cada columna para aplicar en producción
+**How it is done:**
 
-**NO cambia el número de columnas**, solo normaliza los valores.
+1. During training, the 1% and 99% percentiles of each variable are calculated on the training set
+2. During transformation, any value below the 1% percentile is replaced by that percentile, and any value above the 99% percentile is replaced by that percentile
 
-**Resultado final:** **~117 features normalizadas** (todas en rango 0-1)
-
----
-
-## 📊 Resumen de Transformaciones
-
-### **Transformación de Columnas:**
-
-```
-53 columnas originales
-    ↓ Paso 1: Limpieza
-    - Remueve ID_CLIENT (1 columna)
-    - Remueve 9 columnas constantes
-    - Remueve 2 columnas alta cardinalidad + muchos missing
-    = 42 columnas
-    ↓ Paso 2: Outliers
-    - No se aplica Winsorization (outliers son informativos)
-    = 42 columnas
-    ↓ Paso 3: Feature Engineering
-    - Crea 17 nuevas features
-    = 59 columnas
-    ↓ Paso 4: Missing Values
-    - Crea 6 indicadores de missing
-    - Crea AGE_GROUP (1 columna)
-    = 66 columnas
-    ↓ Paso 5: Encoding
-    - OneHotEncoder expande columnas (1 → múltiples) para baja/media cardinalidad
-    - Frequency Encoding mantiene (1 → 1) para alta cardinalidad
-    - OrdinalEncoder mantiene (1 → 1) para binarias y Y/N
-    = ~117 features
-    ↓ Paso 6: Scaling
-    - MinMaxScaler normaliza (no cambia número)
-    = ~117 features finales (todas normalizadas 0-1)
-```
+**Why it is done:** Extreme values can negatively affect model training. Winsorization preserves information from normal values but limits the impact of anomalous values that could be data errors or very rare cases.
 
 ---
 
-## 💾 Guardado del Pipeline
+### **Step 6: Feature Engineering**
 
-### **Archivo:** `preprocessor.joblib`
+**What is done:** New derived features are created based on insights from exploratory data analysis (EDA).
 
-**Contiene:**
+**Created features (11 new):**
 
-- `PreprocessingPipeline` completo con:
-  - `constant_columns_removed`: Lista de 9 columnas constantes
-  - `outlier_limits`: Diccionario con límites (lower/upper) de 10 variables
-  - `categorical_columns`: Lista de columnas categóricas identificadas
-  - `numeric_columns`: Lista de columnas numéricas identificadas
-  - `binary_cat_columns`: Lista de binarias
-  - `ohe_cat_columns`: Lista de baja cardinalidad (OneHot)
-  - `ordinal_cat_columns`: Lista de alta cardinalidad (Ordinal)
-  - `feature_engineering_features`: Lista de 19 features creadas
-  - `categorical_imputer`: SimpleImputer con modas aprendidas
-  - `numeric_imputer`: SimpleImputer con medianas aprendidas
-  - `binary_encoder`: OrdinalEncoder para binarias
-  - `ohe_encoder`: OneHotEncoder para baja cardinalidad
-  - `ordinal_encoder`: OrdinalEncoder para alta cardinalidad
-  - `scaler`: MinMaxScaler con min/max aprendidos
-  - `is_fitted`: Flag indicando que el pipeline está entrenado
+1. **INCOME_TOTAL**: Sum of personal and other income
+2. **INCOME_RATIO**: Ratio of other income to main income
+3. **HAS_OTHER_INCOME**: Binary flag indicating if they have other income
+4. **YEARS_IN_RESIDENCE**: Conversion of months in residence to years
+5. **YEARS_IN_JOB**: Conversion of months in job to years
+6. **STABILITY_SCORE**: Sum of years in residence and years in job (indicates stability)
+7. **CARDS_COUNT**: Total credit cards owned
+8. **HAS_ANY_CARD**: Binary flag indicating if they have at least one card
+9. **DOCS_COUNT**: Total documents provided
+10. **PAYMENT_DAY_SIN**: Cyclical encoding of payment day using sine
+11. **PAYMENT_DAY_COS**: Cyclical encoding of payment day using cosine
 
-**Tamaño típico:** ~1-2 MB
+**Why it is done:** These derived features capture important relationships between variables that the model may not easily learn with original variables. For example, income ratio or overall stability are more informative concepts than individual variables.
 
 ---
 
-## 🔄 Uso en Producción
+### **Step 7: Imputation, Encoding and Scaling**
 
-### **Entrenamiento:**
+**What is done:** Numeric and categorical columns are processed separately, applying missing value imputation, encoding (conversion to numbers) and scaling.
 
-```python
-pipeline = PreprocessingPipeline(low_cardinality_threshold=20)
-X_train_processed = pipeline.fit_transform(X_train, X_val, X_test)
-pipeline.save()  # Guarda preprocessor.joblib
-```
+#### **For Numeric Columns:**
 
-### **Producción (nuevos datos):**
+1. **Imputation:** Missing values are replaced with the median calculated on the training set
+2. **Scaling:** Values are normalized using StandardScaler (mean=0, standard deviation=1)
 
-```python
-pipeline = PreprocessingPipeline.load()  # Carga preprocessor.joblib
-X_new_processed = pipeline.transform(X_new)  # Aplica transformaciones guardadas
-```
+**Why:** Numeric columns need to have all values complete (no NaN) and be on a similar scale for models to work correctly.
 
-**Garantías:**
+#### **For Categorical Columns:**
 
-- Mismas columnas constantes removidas
-- Mismos límites de outliers aplicados
-- Mismas modas/medianas para imputación
-- Mismas categorías aprendidas para encoding
-- Mismos min/max para escalado
+1. **Imputation:** Missing values are replaced with the mode (most frequent value) calculated on the training set
+2. **OneHot Encoding:** Categories are converted to binary columns (0 or 1)
+   - Each unique category becomes a new column
+   - Categories with frequency less than 1% are grouped as "infrequent"
+   - If a new category appears in production that was not seen in training, it is handled as "infrequent"
+
+**Why:** Machine learning models need numbers, not text. OneHot Encoding is the most common strategy to convert categories to numbers and works well with tree-based models.
+
+**Final result:** The number of final features depends on how many unique categories there are in each categorical column. Typically 100-200 final features are generated ready for the model.
 
 ---
 
-## ⚠️ Consideraciones Importantes
+## Transformation Summary
 
-1. **Desbalanceo de target:** 74% NO vs 26% YES
+### **Column Transformation:**
 
-   - Considerar técnicas de balanceo (SMOTE, undersampling, class_weight)
-   - Usar métricas apropiadas (ROC-AUC, Precision-Recall, F1-score)
+```
+Original columns (53)
+    ↓ Step 1: CleanNullLikeStrings
+    - Converts "NULL", "NULL.1", etc. to NaN
+    - Does not change number of columns
+    ↓ Step 2: DropColumns
+    - Removes ID_CLIENT + 5 high cardinality columns
+    = ~47 columns
+    ↓ Step 3: DropConstantColumns
+    - Removes columns without variance (automatically detected)
+    = ~38-42 columns (depends on detected constants)
+    ↓ Step 4: MissingIndicatorAdder
+    - Creates 6 missing indicators
+    = ~44-48 columns
+    ↓ Step 5: Winsorizer
+    - Caps outliers using 1% and 99% percentiles
+    - Does not change number of columns
+    ↓ Step 6: FeatureEngineer
+    - Creates 11 new features
+    = ~55-59 columns
+    ↓ Step 7: ColumnTransformer
+    - Numeric: median imputation + StandardScaler
+    - Categorical: most_frequent imputation + OneHotEncoder
+    - OneHot expands categoricals (1 → multiple columns)
+    = ~100-200 final features (depends on unique categories)
+```
 
-2. **Missing Values:**
+**Note:** The exact number of final features varies according to unique categories in each categorical column. OneHotEncoder creates one column per unique category (plus one column for "infrequent" if there are infrequent categories).
 
-   - Variables con muchos missing:
-     - `PROFESSIONAL_CITY`, `PROFESSIONAL_BOROUGH` - Muchos missing
-     - `MATE_PROFESSION_CODE`, `MATE_EDUCATION_LEVEL` - Muchos missing
-   - Usar indicadores de missing como features
-   - Considerar que missing puede ser informativo (ej: no tiene trabajo formal)
+---
 
-3. **Variables de Alta Cardinalidad:**
+## Pipeline Saving
 
-   - `RESIDENCIAL_CITY` - Muchas categorías
-   - `RESIDENCIAL_BOROUGH` - Muchas categorías
-   - `PROFESSIONAL_CITY` - Muchas categorías + muchos missing
-   - `CITY_OF_BIRTH` - Muchas categorías
-   - **Estrategia:** Agrupar categorías poco frecuentes o usar Target Encoding
+**File:** `models/preprocessor/preprocessor.joblib`
 
-4. **Variables Geográficas:**
+**What is saved:** The complete pipeline with all transformers and their parameters learned during training:
 
-   - Pueden tener información útil sobre riesgo por región
-   - Considerar codificar estados/ciudades por riesgo promedio (Target Encoding)
-   - `RESIDENCIAL_ZIP_3` y `PROFESSIONAL_ZIP_3` pueden ser útiles para agrupar
+- Winsorization limits (1% and 99% percentiles of each variable)
+- Detected and removed constant columns
+- Medians for imputing missing values in numeric columns
+- Modes for imputing missing values in categorical columns
+- Learned categories for OneHotEncoder
+- Scaling parameters (mean and standard deviation of each numeric variable)
 
-5. **Outliers:**
+**Typical size:** Between 1-5 MB (depends on the number of unique categories in categorical variables)
 
-   - Variables financieras (`PERSONAL_MONTHLY_INCOME`, `PERSONAL_ASSETS_VALUE`) pueden tener valores extremos
-   - `AGE` puede tener valores anómalos
-   - **Estrategia:** Capping con IQR o Winsorization
+**Why it is important:** By saving the pipeline, we guarantee that in production exactly the same transformations used in training are applied, using the same learned parameters (medians, modes, limits, etc.).
 
-6. **Variables Constantes:**
+---
 
-   - Verificar si hay columnas con todos los valores iguales
-   - Remover antes del encoding para evitar problemas
+## Important Considerations
 
-7. **Variables con Encoding Desconocido:**
-   - `MARITAL_STATUS`, `EDUCATION_LEVEL`, `RESIDENCE_TYPE`, `OCCUPATION_TYPE` tienen encoding no informado
-   - Tratar como categóricas ordinales si tienen orden lógico, sino como categóricas nominales
+1. **Step Order is Critical:**
+
+   The order of steps is very important because each step depends on the previous ones:
+
+   - First NULLs are cleaned to have real NaN values
+   - Then non-useful columns are removed
+   - Then missing indicators are created (before imputing)
+   - Winsorization is applied before creating new features
+   - New derived features are created
+   - Finally missing values are imputed, categoricals are encoded and numerics are scaled
+
+2. **Handling Unknown Values in Production:**
+
+   If a new category appears in production that was not seen in training, it is automatically handled by grouping it as "infrequent". This allows the model to work correctly with new data.
+
+3. **Winsorization:**
+
+   Winsorization limits are calculated only once during training using percentiles from the training set. These same limits are reused in production to guarantee consistency.
+
+4. **Informative Missing Values:**
+
+   Missing indicators are created before imputing missing values. This allows the model to learn from the absence of information, which can be very relevant (for example, if profession code is missing it may indicate unemployment).
+
+5. **Scaling:**
+
+   Scaling normalizes all numeric variables to the same scale (mean=0, standard deviation=1). This is important for models to work correctly, especially those that use distances or regularization.
+
+6. **Infrequent Category Grouping:**
+
+   Categories that appear very few times (less than 1%) are grouped as "infrequent". This reduces the number of final features and improves the model's ability to generalize to new data.
+
+---
+
+## References
+
+- **EDA Findings:** See `EDA_FINDINGS.md` for complete details
+- **Implementation:** See `src/preprocessing.py` for complete code
+- **Removed columns:** ID_CLIENT + 5 high cardinality columns (configurable)
+- **Constant columns:** Automatically removed by `DropConstantColumns`
+- **Outliers:** Winsorization applied using 1% and 99% percentiles (configurable)
+- **Feature Engineering:** 11 new features implemented according to EDA findings
+- **Encoding:** OneHotEncoder with infrequent category grouping (<1% frequency)
 
 ---
 
 ---
 
-## ⚙️ Configuración
-
-### **Parámetros del Pipeline:**
-
-```python
-PreprocessingPipeline(low_cardinality_threshold=20)
-```
-
-- `low_cardinality_threshold`: Umbral para separar baja vs alta cardinalidad (default: 20)
-  - ≤20 categorías → OneHotEncoder
-  - > 20 categorías → OrdinalEncoder
-
-### **Constantes Configuradas:**
-
-```python
-# Columnas Y/N a convertir
-YN_COLUMNS = [
-    "FLAG_RESIDENCIAL_PHONE",
-    "FLAG_MOBILE_PHONE",
-    "COMPANY",
-    "FLAG_PROFESSIONAL_PHONE",
-    "FLAG_ACSP_RECORD",
-]
-
-# Variables para indicadores de missing
-MISSING_INDICATOR_COLS = [
-    "PROFESSIONAL_CITY",
-    "PROFESSIONAL_BOROUGH",
-    "PROFESSION_CODE",
-    "MONTHS_IN_RESIDENCE",
-    "MATE_PROFESSION_CODE",
-    "MATE_EDUCATION_LEVEL",
-    "RESIDENCE_TYPE",
-    "OCCUPATION_TYPE",
-]
-
-# Umbrales para estrategias de encoding según cardinalidad
-GROUPING_THRESHOLD = 100  # Columnas con >100 categorías: Frequency Encoding
-MIN_FREQUENCY_FOR_GROUPING = 10  # Categorías con <10 ocurrencias se agrupan en "OTROS"
-```
-
----
-
-## ⚠️ Consideraciones Importantes
-
-1. **Orden de Pasos es Crítico:**
-
-   - Feature engineering debe ir **antes** de encoding
-   - Missing indicators deben crearse **antes** de imputar
-   - Encoding debe ir **después** de imputar (para tener valores completos)
-
-2. **Manejo de Valores Desconocidos:**
-
-   - OneHotEncoder: `handle_unknown="ignore"` → categorías nuevas = todas columnas en 0
-   - OrdinalEncoder: `unknown_value=-1` → categorías nuevas = -1
-
-3. **Frequency Encoding para Alta Cardinalidad:**
-
-   - Columnas con >100 categorías usan Frequency Encoding (frecuencia relativa)
-   - No introduce orden artificial como OrdinalEncoder
-   - NaN se preservan y se codifican como "MISSING" con frecuencia baja
-   - Categorías nuevas (unknown) usan frecuencia mínima
-
-4. **Missing Values Informativos:**
-
-   - Los indicadores de missing capturan información útil (ej: missing en variables profesionales puede indicar desempleo)
-   - Los missing se imputan pero también se crean indicadores
-
-5. **Escalado Final:**
-   - Todas las features se normalizan a [0, 1]
-   - Esto ayuda a modelos que usan distancias (KNN) o regularización
-   - No cambia relaciones entre features, solo escala
-
----
-
-## 📚 Referencias
-
-- **Hallazgos del EDA:** Ver `EDA_FINDINGS.md` para detalles completos
-- **Columnas constantes:** 9 columnas identificadas y removidas automáticamente
-- **Columnas removidas:** 2 columnas de alta cardinalidad + muchos missing (PROFESSIONAL_CITY, PROFESSIONAL_BOROUGH)
-- **Outliers:** No se aplica Winsorization (outliers son informativos)
-- **Feature Engineering:** 17 features implementadas según hallazgos del EDA
-- **Encoding:** Frequency Encoding para alta cardinalidad (>100), agrupación + OneHot para media cardinalidad (21-100)
-
----
-
-**Estado:** ✅ Implementado y funcionando. Pipeline guardado en `models/preprocessor/preprocessor.joblib`.
+**Status:** Implemented and working. The pipeline is completely implemented in `src/preprocessing.py` and is saved in `models/preprocessor/preprocessor.joblib` after training.

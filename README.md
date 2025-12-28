@@ -1,12 +1,12 @@
 # Credit Risk Analysis - Final Project
 
-## 📋 Project Description
+## Project Description
 
 This project aims to develop a complete credit risk analysis system using Machine Learning techniques. The system will evaluate the probability of customer default and make informed decisions about credit approval or rejection.
 
 **Dataset**: PAKDD2010 - Credit Risk Analysis Dataset
 
-## 🎯 Objectives
+## Objectives
 
 1. **EDA (Exploratory Data Analysis)**: Perform a complete exploratory analysis of the customer and credit dataset.
 2. **Preprocessing Pipeline**: Design a standard preprocessing pipeline for the entire team.
@@ -15,7 +15,7 @@ This project aims to develop a complete credit risk analysis system using Machin
 5. **API Deployment**: Expose the model through a REST API using FastAPI.
 6. **UI Demo**: Build a simple interface (Streamlit) to demonstrate how a "bank" would use the model to approve/reject credits.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Credit-Risk-Analysis-Final-Project/
@@ -23,82 +23,85 @@ Credit-Risk-Analysis-Final-Project/
 │   ├── raw/              # Original PAKDD2010 dataset unprocessed
 │   │   ├── PAKDD2010_Modeling_Data.txt
 │   │   ├── PAKDD2010_Prediction_Data.txt
-│   │   ├── PAKDD2010_VariablesList.XLS
-│   │   └── ...
-│   └── processed/        # Clean and preprocessed dataset (to be created)
+│   │   └── PAKDD2010_VariablesList.XLS
+│   └── processed/        # Processed data directory (not used, pipeline is saved instead)
+├── models/               # Saved trained models and artifacts
+│   ├── preprocessor/     # Preprocessing pipeline
+│   ├── production/       # Production model and metrics
+│   └── training_history/ # Training history logs
 ├── notebooks/
 │   └── EDA/              # Exploratory data analysis notebooks
 │       ├── maria_EDA.ipynb
 │       └── simon_EDA_ordered.ipynb
+├── scripts/              # Utility scripts for training, CV, and analysis
 ├── src/                  # Python source code
 │   ├── __init__.py
-│   ├── preprocessing.py  # Preprocessing pipeline
-│   ├── train_model.py    # Model training script
+│   ├── preprocessing.py  # Preprocessing pipeline implementation
 │   ├── data_utils.py     # Data loading utilities
 │   ├── models_config.py  # Model configurations
-│   ├── config.py         # Configuration paths
+│   ├── config.py         # Configuration paths and settings
 │   ├── api/              # FastAPI service
-│   │   ├── server.py
-│   │   └── feature_mapper.py
-│   └── ui/               # Streamlit UI
-│       ├── simple_app.py
-│       └── ui_options.json
-├── models/               # Saved trained models (gitignored, except .gitkeep)
-├── data/
-│   ├── raw/              # Original dataset (gitignored, except .gitkeep)
-│   └── processed/        # Processed data (gitignored, except .gitkeep)
-├── Dockerfile            # Docker for API + model
-├── docker-compose.yml    # Service orchestration
+│   │   ├── server.py     # API endpoints
+│   │   └── feature_mapper.py  # Feature mapping utilities
+│   ├── ui/               # Streamlit UI
+│   │   ├── simple_app.py  # Main UI application
+│   │   └── ui_options.json  # UI dropdown options
+│   └── modeling/         # Model training and evaluation
+│       ├── train_eval.py    # Main training and evaluation system
+│       ├── pipelines.py     # Pipeline factory functions
+│       └── payer_segments.py  # Customer segmentation utilities
+├── docker-compose.yml    # Docker Compose orchestration (3 services)
+├── Dockerfile.api        # Dockerfile for API service
+├── Dockerfile.ui         # Dockerfile for UI service
+├── Dockerfile.model      # Dockerfile for model service
 ├── requirements.txt      # Project dependencies
 └── README.md             # This file
 ```
 
-## 🚀 Installation and Setup
+## Installation and Setup
 
-### 1. Create virtual environment
-
-```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
-
-# Linux/Mac
-python -m venv venv
-source venv/bin/activate
-```
-
-### 2. Install dependencies
+The system uses Docker Compose for easy deployment:
 
 ```bash
-pip install -r requirements.txt
+# Build and start all services
+docker-compose up --build
+
+# Services will be available at:
+# - UI: http://localhost:8501
+# - API: http://localhost:8000
+# - API Docs: http://localhost:8000/docs
 ```
 
-### 3. Verify installation
+For detailed setup and usage instructions, see **`SISTEMA_COMPLETO.md`**.
 
-```bash
-python -c "import pandas, sklearn, fastapi; print('Dependencies installed correctly')"
-```
-
-## 📝 Current Project Status
+## Current Project Status
 
 The project is **fully functional** and ready for use:
 
-- ✅ **Folder structure**: Complete project organization
-- ✅ **Dataset**: PAKDD2010 data processing implemented
-- ✅ **EDA**: Exploratory analysis completed (`notebooks/EDA/`)
-- ✅ **Preprocessing**: Complete preprocessing pipeline implemented (`src/preprocessing.py`)
-- ✅ **Models**: Training and comparison implemented (`src/train_model.py`)
-  - Logistic Regression, Random Forest, Gradient Boosting
-  - Automatic model selection based on ROC-AUC
-  - Optimal threshold calculation
-- ✅ **API**: FastAPI service implemented (`src/api/server.py`)
+- **Folder structure**: Complete project organization
+- **Dataset**: PAKDD2010 data processing implemented
+- **EDA**: Exploratory analysis completed (`notebooks/EDA/`)
+- **Preprocessing**: Complete preprocessing pipeline implemented (`src/preprocessing.py`)
+  - 7-step pipeline: cleaning, column removal, missing indicators, winsorization, feature engineering, imputation, encoding, scaling
+  - Creates 11 new features + 6 missing indicators
+- **Models**: Training and evaluation system implemented (`src/modeling/train_eval.py`)
+  - Multiple models: Gradient Boosting, XGBoost, LightGBM, CatBoost, Logistic Regression, HistGBM
+  - Cross-validation (5 folds) for model comparison
+  - Automatic model selection based on PR-AUC
+  - Optimal threshold calculation (F1 maximization)
+- **API**: FastAPI service implemented (`src/api/server.py`)
   - `/predict` endpoint for credit risk evaluation
   - Automatic model and preprocessor loading
-- ✅ **UI**: Streamlit interface implemented (`src/ui/simple_app.py`)
-  - User-friendly form for credit evaluation
+  - Feature mapping from simplified input to full dataset format
+- **UI**: Streamlit interface implemented (`src/ui/simple_app.py`)
+  - Complete form with all necessary features
   - Real-time predictions via API
+  - User-friendly visualization of results
+- **Docker**: Complete containerization with Docker Compose
+  - 3 services: API, UI, and Model service
+  - Easy deployment and scaling
 
-## 📝 Quick Start
+## Quick Start
 
 For detailed instructions, see:
 
@@ -111,9 +114,6 @@ For detailed instructions, see:
 
 1. Place dataset files in `data/raw/`
 2. Run `docker-compose up --build`
-3. Train models: `python -m src.train_model`
-4. Use UI: http://localhost:8501
-
-## 👥 Team
-
-This project is being developed by a team of 6 people.
+3. Train models: `python -m src.modeling.train_eval`
+4. Restart API: `docker-compose restart api`
+5. Use UI: http://localhost:8501

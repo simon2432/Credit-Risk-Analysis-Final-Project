@@ -1,7 +1,6 @@
 from typing import List, Tuple
 
 import pandas as pd
-from sklearn.model_selection import train_test_split
 
 from src import config
 
@@ -81,12 +80,3 @@ def get_feature_target(
     y_test = app_test['TARGET_LABEL_BAD=1']
 
     return X_train, y_train, X_test, y_test
-
-def get_train_val_sets(X_train: pd.DataFrame, y_train: pd.Series) -> Tuple[
-    pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
-    
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train, y_train, test_size=0.2, random_state=42, shuffle=True, stratify=y_train
-    )
-
-    return X_train, X_val, y_train, y_val
