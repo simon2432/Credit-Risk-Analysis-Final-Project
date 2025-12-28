@@ -584,12 +584,15 @@ def evaluate_train_val(
 
     val_metrics_opt = _metrics_block(y_val_arr, val_score, threshold=optimal_threshold)
 
+    val_pred_opt = _prediction_stats(y_val_arr, val_score, optimal_threshold)
     return {
         "train_metrics": train_metrics,
         "val_metrics": val_metrics,
         "optimal_threshold_info": {
             "optimal_threshold": float(optimal_threshold),
             "metrics_at_optimal": val_metrics_opt,
+            "approval_rate": float(1.0 - val_pred_opt["pred_rate"]),
+            "reject_rate": float(val_pred_opt["pred_rate"]),
             "objective": threshold_objective,
             "min_precision": None if min_precision is None else float(min_precision),
             "min_recall": None if min_recall is None else float(min_recall),
@@ -601,7 +604,7 @@ def evaluate_train_val(
             },
             "val": {
                 "threshold_0_5": _prediction_stats(y_val_arr, val_score, default_threshold),
-                "threshold_opt": _prediction_stats(y_val_arr, val_score, optimal_threshold),
+                "threshold_opt": val_pred_opt,
             },
         },
     }
@@ -857,6 +860,14 @@ def save_model_and_preprocessor(
         f.write(
             f"\nOptimal Threshold (calculated on validation): "
             f"{metrics['optimal_threshold_info']['optimal_threshold']:.4f}\n"
+        )
+        f.write(
+            f"Approval Rate @ Optimal Threshold: "
+            f"{metrics['optimal_threshold_info']['approval_rate']:.4f}\n"
+        )
+        f.write(
+            f"Reject Rate @ Optimal Threshold: "
+            f"{metrics['optimal_threshold_info']['reject_rate']:.4f}\n"
         )
     print(f"Metrics saved to: {metrics_path}")
 
