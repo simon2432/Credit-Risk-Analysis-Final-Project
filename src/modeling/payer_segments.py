@@ -12,6 +12,7 @@ from typing import Iterable, Optional, Sequence
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 
 
 @dataclass(frozen=True)
@@ -232,3 +233,199 @@ def build_top_payers_scenarios(
     out_path = out_dir / "scenarios_summary.csv"
     summary_df.to_csv(out_path, index=False)
     return summary_df
+
+
+def save_risk_by_age_plot(
+    X: pd.DataFrame,
+    pred_proba: Sequence[float],
+    *,
+    age_col: str = "AGE",
+    out_dir: str | Path,
+    filename: str = "risk_by_age.png",
+) -> Path:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if age_col not in X.columns:
+        raise KeyError(f"Missing age column: {age_col}")
+
+    ages = pd.to_numeric(X[age_col], errors="coerce")
+    risk = _as_array(pred_proba)
+    mask = ages.notna()
+    x = ages[mask].to_numpy(dtype=float)
+    y = risk[mask.to_numpy()]
+
+    plt.figure(figsize=(7, 4))
+    plt.scatter(x, y, s=8, alpha=0.3)
+    if len(x) >= 2:
+        coef = np.polyfit(x, y, 1)
+        x_line = np.linspace(np.min(x), np.max(x), 100)
+        y_line = coef[0] * x_line + coef[1]
+        plt.plot(x_line, y_line, color="#f58518", linewidth=2)
+    plt.xlabel("Age")
+    plt.ylabel("Predicted default probability")
+    plt.title("Risk vs Age (linear fit)")
+    plt.tight_layout()
+    out_path = out_dir / filename
+    plt.savefig(out_path)
+    plt.close()
+    return out_path
+
+
+def save_risk_by_tenure_plot(
+    X: pd.DataFrame,
+    pred_proba: Sequence[float],
+    *,
+    tenure_col: str = "MONTHS_IN_THE_JOB",
+    out_dir: str | Path,
+    filename: str = "risk_by_tenure.png",
+) -> Path:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if tenure_col not in X.columns:
+        raise KeyError(f"Missing tenure column: {tenure_col}")
+
+    tenure = pd.to_numeric(X[tenure_col], errors="coerce")
+    risk = _as_array(pred_proba)
+    mask = tenure.notna()
+    x = tenure[mask].to_numpy(dtype=float)
+    y = risk[mask.to_numpy()]
+
+    plt.figure(figsize=(7, 4))
+    plt.scatter(x, y, s=8, alpha=0.3)
+    if len(x) >= 2:
+        coef = np.polyfit(x, y, 1)
+        x_line = np.linspace(np.min(x), np.max(x), 100)
+        y_line = coef[0] * x_line + coef[1]
+        plt.plot(x_line, y_line, color="#f58518", linewidth=2)
+    plt.xlabel("Months in job")
+    plt.ylabel("Predicted default probability")
+    plt.title("Risk vs Job Tenure (linear fit)")
+    plt.tight_layout()
+    out_path = out_dir / filename
+    plt.savefig(out_path)
+    plt.close()
+    return out_path
+
+
+def save_top_segments_rate_plot(
+    X: pd.DataFrame,
+    pred_proba: Sequence[float],
+    *,
+    top_pcts: Iterable[float],
+    amount: float,
+    rates: Iterable[float],
+    out_dir: str | Path,
+    filename: str = "top_segments_rate_vs_margin.png",
+) -> Path:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    df = X.copy()
+    df["pred_proba"] = _as_array(pred_proba)
+    df = df.sort_values("pred_proba", ascending=True).reset_index(drop=True)
+
+    colors = ["#4c78a8", "#f58518", "#54a24b"]
+    fig, ax = plt.subplots(figsize=(7, 4))
+    for idx, pct in enumerate(top_pcts):
+        color = colors[idx % len(colors)]
+        n_top = max(int(len(df) * (pct / 100.0)), 1)
+        top_df = df.head(n_top)
+        x_vals = []
+        y_vals = []
+        for rate in rates:
+            expected_margin = float(amount) * float(rate) * (1.0 - top_df["pred_proba"])
+            x_vals.append(float(rate))
+            avg_margin = float(expected_margin.mean())
+            y_vals.append(avg_margin)
+        ax.scatter(
+            x_vals,
+            y_vals,
+            s=40,
+            alpha=0.85,
+            label=f"Top {int(pct)}% (USD)",
+            color=color,
+        )
+        if len(x_vals) >= 2:
+            coef = np.polyfit(x_vals, y_vals, 1)
+            x_line = np.linspace(min(x_vals), max(x_vals), 50)
+            y_line = coef[0] * x_line + coef[1]
+            ax.plot(x_line, y_line, linewidth=1.8, color=color)
+
+    ax.set_xlabel("Interest rate (%)")
+    ax.set_ylabel("Avg expected margin (USD)")
+    ax.set_title("Top Segments: Rate vs Margin (linear fit)")
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v*100:.0f}%"))
+    handles1, labels1 = ax.get_legend_handles_labels()
+    ax.legend(handles1, labels1, fontsize=8, title="USD", loc="best")
+    fig.subplots_adjust(bottom=0.24, left=0.08, right=0.9)
+    out_path = out_dir / filename
+    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.25)
+    plt.close(fig)
+    return out_path
+
+
+def save_top_segments_amount_plot(
+    X: pd.DataFrame,
+    pred_proba: Sequence[float],
+    *,
+    top_pcts: Iterable[float],
+    amounts: Iterable[float],
+    rate: float,
+    out_dir: str | Path,
+    filename: str = "top_segments_amount_vs_margin.png",
+) -> Path:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    df = X.copy()
+    df["pred_proba"] = _as_array(pred_proba)
+    df = df.sort_values("pred_proba", ascending=True).reset_index(drop=True)
+
+    colors = ["#4c78a8", "#f58518", "#54a24b"]
+    fig = plt.figure(figsize=(7, 4))
+    ax = fig.add_subplot(111, projection="3d")
+    for idx, pct in enumerate(top_pcts):
+        color = colors[idx % len(colors)]
+        n_top = max(int(len(df) * (pct / 100.0)), 1)
+        top_df = df.head(n_top)
+        x_vals = []
+        y_vals = []
+        z_pct = []
+        for amount in amounts:
+            expected_margin = float(amount) * float(rate) * (1.0 - top_df["pred_proba"])
+            x_vals.append(float(amount))
+            avg_margin = float(expected_margin.mean())
+            y_vals.append(avg_margin)
+            z_pct.append((avg_margin / float(amount)) * 100.0)
+        ax.scatter(
+            x_vals,
+            y_vals,
+            z_pct,
+            s=40,
+            alpha=0.85,
+            label=f"Top {int(pct)}%",
+            color=color,
+        )
+        if len(x_vals) >= 2:
+            coef = np.polyfit(x_vals, y_vals, 1)
+            x_line = np.linspace(min(x_vals), max(x_vals), 50)
+            y_line = coef[0] * x_line + coef[1]
+            z_line = np.array([np.mean(z_pct)] * len(x_line))
+            ax.plot(x_line, y_line, z_line, linewidth=1.8, color=color)
+
+    ax.set_xlabel("Loan amount (USD)", labelpad=10)
+    ax.set_ylabel("Avg expected margin\n(USD)", labelpad=12)
+    ax.set_zlabel("Avg expected margin\n(% of amount)", labelpad=12)
+    ax.tick_params(axis="x", labelsize=8)
+    ax.tick_params(axis="y", labelsize=8)
+    ax.tick_params(axis="z", labelsize=8)
+    ax.set_title("Top Segments: Amount vs Margin (3D)", fontsize=10)
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    ax.zaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.1f}%"))
+    ax.legend(fontsize=7, loc="best")
+    ax.view_init(elev=22, azim=-55)
+    fig.tight_layout()
+    out_path = out_dir / filename
+    fig.savefig(out_path)
+    plt.close(fig)
+    return out_path
