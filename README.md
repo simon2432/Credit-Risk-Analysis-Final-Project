@@ -106,8 +106,6 @@ The project is **fully functional** and ready for use:
 For detailed instructions, see:
 
 - **`SISTEMA_COMPLETO.md`**: Complete system documentation with quick start guide
-- **`DOCKER_QUICK.md`**: Docker setup and usage guide
-- **`MODELOS_PERSONALIZADOS.md`**: Guide to add custom models
 - **`PREPROCESSING_PLAN.md`**: Detailed preprocessing documentation
 
 **Quick setup:**
